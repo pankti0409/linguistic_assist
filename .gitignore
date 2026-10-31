@@ -134,3 +134,21 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# --- PS-16 backend ---
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+third_party/
+assets/*
+!assets/.gitkeep
+# local personal data (phrasebook, profile terms) never committed
+data/*
+!data/.gitkeep
+# R8: no media on disk, belt and braces
+*.wav
+*.mp4
+*.avi
+*.npy

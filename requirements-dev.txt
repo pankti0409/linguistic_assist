@@ -1,0 +1,4 @@
+-r requirements.txt
+pytest>=8
+ruff>=0.5
+httpx2>=2.14  # starlette>=1.x TestClient transport (plain httpx is deprecated there)

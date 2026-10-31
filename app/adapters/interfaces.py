@@ -1,0 +1,53 @@
+"""Boundaries to every external dependency. Real adapters and fakes both implement these.
+
+Adapters are dumb transports. Gates (consent, confirmation) live in the services that
+call them, so a fake and a real adapter are held to the same rules.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+from typing import Protocol, runtime_checkable
+
+import numpy as np
+
+from app.schemas import LipEvidence, SpeechEvidence
+
+
+@runtime_checkable
+class FrameSource(Protocol):
+    def open(self) -> bool: ...
+    def read(self) -> tuple[bool, np.ndarray | None]: ...
+    def close(self) -> None: ...
+
+
+@runtime_checkable
+class SpeechToText(Protocol):
+    def transcribe(
+        self, pcm16: bytes, sample_rate: int, language: str | None = None
+    ) -> SpeechEvidence: ...
+
+
+@runtime_checkable
+class LLMClient(Protocol):
+    def complete_json(
+        self, system: str, user: str, *, temperature: float, max_tokens: int
+    ) -> str: ...
+
+
+@runtime_checkable
+class TextToSpeech(Protocol):
+    def synthesize(self, text: str, voice_id: str) -> bytes: ...
+
+
+@runtime_checkable
+class AvatarTransport(Protocol):
+    def echo_text(self, conversation_id: str, text: str) -> None: ...
+    def interrupt(self, conversation_id: str) -> None: ...
+
+
+@runtime_checkable
+class LipReader(Protocol):
+    @property
+    def available(self) -> bool: ...
+    def read(self, frames: Sequence[np.ndarray]) -> LipEvidence: ...
