@@ -241,7 +241,8 @@ export function BackendProvider({ children }: { children: React.ReactNode }) {
       ws.onmessage = (m) => { try { onEventRef.current(JSON.parse(m.data)) } catch { /* ignore malformed */ } }
       ws.onclose = () => {
         if (closed) return
-        setLink((l) => (l === 'locked' ? l : 'offline'))
+        // a single drop is usually a blip: say "connecting" first, "offline" only after retries fail
+        setLink((l) => (l === 'locked' ? l : tries >= 2 ? 'offline' : 'connecting'))
         tries += 1
         timer = window.setTimeout(connect, Math.min(8000, 500 * 2 ** tries))
       }

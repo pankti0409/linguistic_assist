@@ -8,6 +8,7 @@ import { api, errorText } from '@/lib/api'
 import { useBackend } from '@/lib/backend'
 import type { AvatarSession } from '@/lib/types'
 
+import { AvatarPlayer } from '../avatar-player'
 import { Badge, Button, Dot, Panel, PanelHeader, Segmented } from '../ui/kit'
 
 export function AvatarScreen() {
@@ -47,13 +48,8 @@ export function AvatarScreen() {
         </div>
         <div className="relative aspect-video bg-[#0e1215]">
           {live ? (
-            // Receive-only: no camera or microphone permission is delegated to the room (R4).
-            <iframe
-              title="AI avatar (receive-only)"
-              src={session!.conversation_url!}
-              allow="autoplay; fullscreen"
-              className="size-full border-0"
-            />
+            // Receive-only: joins with no devices, so no camera/mic prompt ever appears (R4).
+            <AvatarPlayer url={session!.conversation_url!} />
           ) : (
             <div className="absolute inset-0 grid grid-cols-1 place-items-center p-6 text-center text-white">
               <div className="max-w-sm">
@@ -76,13 +72,6 @@ export function AvatarScreen() {
             <div className="absolute left-4 top-4"><Badge tone="sage"><Dot pulse /> Speaking your message</Badge></div>
           )}
         </div>
-        {live && (
-          <p className="mx-6 mt-4 rounded-xl bg-sky px-4 py-3 text-sm text-sky-ink">
-            If the avatar room asks you to unblock your camera and mic, press <span className="font-bold">Dismiss</span>.
-            PS-16 keeps them off in the room on purpose: the avatar only needs to be seen and heard, and your
-            webcam keeps working for gestures through the backend.
-          </p>
-        )}
         <p className="px-6 py-4 text-sm text-muted">
           Everyone in the room sees that this is an AI avatar. It repeats your confirmed words exactly and never answers on its own.
         </p>
