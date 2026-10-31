@@ -192,3 +192,35 @@ class FakeFaceDetector:
 
     def close(self) -> None:
         self.closed = True
+
+
+class FakeGestureRecognizer:
+    """GestureRecognizer that answers each frame with scripted HandReadings.
+
+    `script(ts_ms, call_index)` returns a list of HandReading; the default sees no hands.
+    """
+
+    def __init__(self, on_readings, script=None) -> None:
+        self._cb = on_readings
+        self._script = script or (lambda ts, i: [])
+        self.timestamps: list[int] = []
+        self.closed = False
+
+    @classmethod
+    def factory(cls, script=None, created: list | None = None):
+        def make(_model_path, on_readings):
+            rec = cls(on_readings, script)
+            if created is not None:
+                created.append(rec)
+            return rec
+
+        return make
+
+    def recognize_async(self, bgr: np.ndarray, ts_ms: int) -> None:
+        if self.timestamps and ts_ms <= self.timestamps[-1]:
+            raise ValueError("timestamps must be strictly increasing (MediaPipe contract)")
+        self.timestamps.append(ts_ms)
+        self._cb(self._script(ts_ms, len(self.timestamps) - 1), ts_ms)
+
+    def close(self) -> None:
+        self.closed = True

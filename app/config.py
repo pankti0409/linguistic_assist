@@ -81,6 +81,7 @@ class Settings:
     max_clarify_rounds: int = 2
     confirm_ttl_s: float = 120.0
     turn_max_s: float = 20.0
+    calibrate_timeout_s: float = 10.0
 
     def __post_init__(self) -> None:
         if self.debug_save_clips:
@@ -146,4 +147,5 @@ def load_settings(env: Mapping[str, str | None] | None = None) -> Settings:
         max_clarify_rounds=int(g("MAX_CLARIFY_ROUNDS") or d.max_clarify_rounds),
         confirm_ttl_s=float(g("CONFIRM_TTL_S") or d.confirm_ttl_s),
         turn_max_s=float(g("TURN_MAX_S") or d.turn_max_s),
+        calibrate_timeout_s=float(g("CALIBRATE_TIMEOUT_S") or d.calibrate_timeout_s),
     )

@@ -138,3 +138,34 @@ voice name. Both voices are Hindi library voices. Not covered by the switch:
 - The Tavus face (`rbd2cdb9a3f3`, "Helen - Home") does not change with the voice.
 - In the text-echo tier (8.8 tier 2), Tavus uses the PAL's own TTS voice. Switching there
   would need a second PAL or a per-session layer override, to be checked in M5.
+
+## M2 (2026-10-31)
+
+### D-018 Handedness from unmirrored frames
+The MediaPipe hand guide says handedness is the subject's own hand, and that "passing a
+horizontally mirrored image will invert these outputs". OpenCV frames are not mirrored, so
+they go to the recognizer unchanged. `Thumb_Up|Left` means the patient's left hand. A
+frontend that shows a mirrored preview should not change the lexicon.
+
+### D-019 Debounce rules, made exact
+Per hand: 8 consecutive frames with the same label and score >= 0.7 emit one token. Another
+token with the same key needs either a return to `None` (or the hand leaving the frame) and
+a new stable run, or 1.5 s more of continuous hold. A frame below the score threshold breaks
+the run but does not re-arm, so a flicker cannot fake a repeat. A different gesture in
+between does count as a change.
+
+### D-020 Lexicon storage and validation
+Lexicon file: `calibration/default.json`. Lookup tries the exact `Label|Hand` key first,
+then `Label|*`. `PUT /gesture/lexicon` replaces the whole map. Only the 7 canned labels,
+`Left|Right|*`, non-empty words and the two reserved words are accepted; anything else
+returns 422. Calibration waits `CALIBRATE_TIMEOUT_S` (10 s) and returns 408 on timeout.
+The token captured during calibration is not also emitted as a word.
+
+### D-021 M2 live evidence, and what is still unverified
+Live run on the dev webcam: the recognizer ran at 14.8 results/s. Someone's real left-hand
+`Pointing_Up` (scores 0.72-0.76) produced stable `gesture.token` events, with 1.5 s
+hold-repeats. A second run with a temporary demo lexicon saw `Open_Palm` in 18 frames, but
+never 8 consecutive at >= 0.7, so correctly no token. The token -> `gesture.word` step is
+covered by tests, but not yet seen live with a mapped gesture. Verify with
+`scripts/watch_events.py gesture.token gesture.word` while showing a thumbs-up steadily for
+about 1 s.

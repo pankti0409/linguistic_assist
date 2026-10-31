@@ -6,6 +6,7 @@ import logging
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -14,7 +15,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.adapters.interfaces import FrameSource
-from app.api import routes_misc, ws
+from app.api import routes_gesture, routes_misc, ws
 from app.config import BIND_HOST, Settings, load_settings
 from app.core.consent import ConsentRegistry
 from app.core.errors import AppError
@@ -24,6 +25,7 @@ from app.core.voice import VoiceSelector
 from app.schemas import ErrorBody
 from app.services.camera import CameraHub
 from app.services.face import DetectorFactory, FaceService
+from app.services.gesture import GestureService, RecognizerFactory
 
 log = logging.getLogger("ps16")
 
@@ -39,6 +41,8 @@ class Overrides:
 
     frame_source_factory: Callable[[], FrameSource] | None = None
     face_detector_factory: DetectorFactory | None = None
+    gesture_recognizer_factory: RecognizerFactory | None = None
+    lexicon_path: Path | None = None
 
 
 def _wire_camera(app: FastAPI, overrides: Overrides) -> None:
@@ -50,16 +54,21 @@ def _wire_camera(app: FastAPI, overrides: Overrides) -> None:
     )
     hub = CameraHub(s, bus, health, consent, source_factory=overrides.frame_source_factory)
     face = FaceService(s, hub, bus, health, consent, overrides.face_detector_factory)
-    app.state.camera, app.state.face = hub, face
+    gesture = GestureService(
+        s, hub, bus, health, consent, overrides.gesture_recognizer_factory, overrides.lexicon_path
+    )
+    app.state.camera, app.state.face, app.state.gesture = hub, face, gesture
 
     # Camera processing runs exactly while `camera` consent is held (R3, D-013).
     def on_grant(purpose: str) -> None:
         if purpose == "camera":
             hub.start()
             face.start()
+            gesture.start()
 
     def on_revoke(purpose: str) -> None:
         if purpose == "camera":
+            gesture.stop()
             face.stop()
             hub.stop()
 
@@ -73,6 +82,7 @@ def create_app(settings: Settings | None = None, overrides: Overrides | None = N
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         yield
+        app.state.gesture.stop()
         app.state.face.stop()
         app.state.camera.stop()
 
@@ -106,6 +116,7 @@ def create_app(settings: Settings | None = None, overrides: Overrides | None = N
     # with its own Host header and is refused (D-009).
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])
     app.include_router(routes_misc.router)
+    app.include_router(routes_gesture.router)
     app.include_router(ws.router)
     return app
 
