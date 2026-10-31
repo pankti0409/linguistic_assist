@@ -9,15 +9,15 @@ from app.schemas import HealthResponse, ServiceHealth, ServiceState
 
 SERVICES = ("camera", "face", "gesture", "lip", "scribe", "tts", "avatar")
 
-# Milestone that builds each service; shown until the service registers itself.
-_BUILT_IN = {
-    "camera": "M1",
-    "face": "M1",
-    "gesture": "M2",
-    "lip": "M3",
-    "scribe": "M4",
-    "tts": "M5",
-    "avatar": "M5",
+# Shown until each service reports its own state.
+_INITIAL = {
+    "camera": "idle; starts when camera consent is granted",
+    "face": "idle; starts when camera consent is granted",
+    "gesture": "idle; starts when camera consent is granted",
+    "lip": "loading",
+    "scribe": "idle",
+    "tts": "idle",
+    "avatar": "not built yet (M5)",
 }
 
 LIMITS = {
@@ -45,7 +45,7 @@ class HealthRegistry:
         self._state: dict[str, ServiceHealth] = {
             name: ServiceHealth(
                 status="unavailable",
-                detail=f"not built yet ({_BUILT_IN[name]})",
+                detail=_INITIAL[name],
                 configured=self._configured(name),
             )
             for name in SERVICES

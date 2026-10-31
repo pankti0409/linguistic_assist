@@ -16,18 +16,26 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.adapters.interfaces import FrameSource
-from app.api import routes_gesture, routes_misc, ws
-from app.config import BIND_HOST, Settings, load_settings
+from app.api import routes_gesture, routes_misc, routes_turn, ws
+from app.config import BIND_HOST, ROOT, Settings, load_settings
+from app.core.confirmation import ConfirmationRegistry
 from app.core.consent import ConsentRegistry
+from app.core.conversation import Conversation
 from app.core.errors import AppError
 from app.core.events import EventBus
 from app.core.health import HealthRegistry
+from app.core.phrasebook import Phrasebook, ProfileTerms
+from app.core.timing import Metrics
+from app.core.turn_machine import TurnMachine
 from app.core.voice import VoiceSelector
 from app.schemas import ErrorBody
 from app.services.camera import CameraHub
 from app.services.face import DetectorFactory, FaceService
+from app.services.fusion import FusionService
 from app.services.gesture import GestureService, RecognizerFactory
 from app.services.lip import LipService
+from app.services.scribe import ScribeService
+from app.services.tts import SpeechOutput
 
 log = logging.getLogger("ps16")
 
@@ -46,6 +54,47 @@ class Overrides:
     gesture_recognizer_factory: RecognizerFactory | None = None
     lexicon_path: Path | None = None
     lip_reader_factory: Callable[[], object] | None = None
+    stt: object | None = None  # SpeechToText
+    mic_factory: Callable[[], object] | None = None
+    llm: object | None = None  # LLMClient
+    tts: object | None = None  # TextToSpeech
+    data_dir: Path | None = None  # phrasebook + profile terms (default: ./data)
+
+
+def _wire_turns(app: FastAPI, overrides: Overrides) -> None:
+    s, bus, health, consent = (
+        app.state.settings,
+        app.state.bus,
+        app.state.health,
+        app.state.consent,
+    )
+    data = overrides.data_dir or ROOT / "data"
+    app.state.conversation = Conversation(s.context_turns)
+    app.state.phrasebook = Phrasebook(data / "phrasebook.json", consent)
+    app.state.profile = ProfileTerms(data / "profile_terms.json", consent)
+    app.state.confirmations = ConfirmationRegistry(s.confirm_ttl_s)
+    app.state.metrics = Metrics()
+    app.state.scribe = ScribeService(s, bus, health, consent, overrides.stt, overrides.mic_factory)
+    app.state.fusion = FusionService(s, health, overrides.llm)
+    app.state.speech = SpeechOutput(
+        s, bus, health, app.state.confirmations, app.state.voice, overrides.tts
+    )
+    app.state.turns = TurnMachine(
+        s,
+        bus,
+        consent,
+        app.state.conversation,
+        app.state.phrasebook,
+        app.state.profile,
+        app.state.fusion,
+        app.state.scribe,
+        app.state.speech,
+        app.state.confirmations,
+        app.state.metrics,
+        lip=app.state.lip,
+        gesture=app.state.gesture,
+        face=app.state.face,
+    )
 
 
 def _wire_camera(app: FastAPI, overrides: Overrides) -> None:
@@ -88,6 +137,8 @@ def create_app(settings: Settings | None = None, overrides: Overrides | None = N
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         yield
+        app.state.turns.shutdown()
+        app.state.scribe.shutdown()
         app.state.lip.shutdown()
         app.state.gesture.stop()
         app.state.face.stop()
@@ -99,7 +150,9 @@ def create_app(settings: Settings | None = None, overrides: Overrides | None = N
     app.state.consent = ConsentRegistry()
     app.state.health = HealthRegistry(settings)
     app.state.voice = VoiceSelector(settings)
-    _wire_camera(app, overrides or Overrides())
+    overrides = overrides or Overrides()
+    _wire_camera(app, overrides)
+    _wire_turns(app, overrides)
 
     @app.exception_handler(AppError)
     async def _app_error(_: Request, exc: AppError) -> JSONResponse:
@@ -124,6 +177,7 @@ def create_app(settings: Settings | None = None, overrides: Overrides | None = N
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])
     app.include_router(routes_misc.router)
     app.include_router(routes_gesture.router)
+    app.include_router(routes_turn.router)
     app.include_router(ws.router)
     return app
 

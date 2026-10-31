@@ -208,9 +208,7 @@ def test_auto_mode_follows_mouth_activity():
 
 
 def test_health_reports_lip_in_app(client):
-    assert wait_for(
-        lambda: client.get("/health").json()["services"]["lip"]["detail"] != "not built yet (M3)"
-    )
+    assert wait_for(lambda: client.get("/health").json()["services"]["lip"]["detail"] != "loading")
 
 
 # --- real Auto-AVSR code (no checkpoint needed) --------------------------------

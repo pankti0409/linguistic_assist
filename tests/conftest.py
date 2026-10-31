@@ -9,7 +9,11 @@ from fastapi.testclient import TestClient
 from app.adapters.fakes import (
     FakeFaceDetector,
     FakeGestureRecognizer,
+    FakeGroq,
     FakeLipReader,
+    FakeMic,
+    FakeScribe,
+    FakeTTS,
     SyntheticCamera,
 )
 from app.config import Settings, load_settings
@@ -34,6 +38,11 @@ def fake_overrides() -> Overrides:
         gesture_recognizer_factory=FakeGestureRecognizer.factory(),
         lexicon_path=Path(tempfile.mkdtemp(prefix="ps16-lex-")) / "test.json",
         lip_reader_factory=FakeLipReader,
+        stt=FakeScribe(),
+        mic_factory=FakeMic,
+        llm=FakeGroq(),
+        tts=FakeTTS(),
+        data_dir=Path(tempfile.mkdtemp(prefix="ps16-data-")),
     )
 
 

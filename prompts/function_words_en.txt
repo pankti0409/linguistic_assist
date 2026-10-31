@@ -1,0 +1,98 @@
+# English function-word allowlist for the R10 post-validator (section 8.6 E).
+# A reconstructed candidate may add ONLY words in this list. One token per line, lowercase.
+# Deliberately EXCLUDED: negations (not, no, never, n't forms), numbers, quantities and every
+# content word, because adding them changes meaning. "like" / "want" are excluded except
+# "like", which is kept for the spec's own "I would like ..." framing (D-029).
+# articles / determiners
+a
+an
+the
+this
+that
+these
+those
+some
+any
+my
+your
+our
+his
+her
+their
+its
+# pronouns
+i
+me
+myself
+you
+we
+us
+he
+him
+she
+it
+they
+them
+# auxiliaries / modals
+am
+is
+are
+was
+were
+be
+been
+being
+do
+does
+did
+have
+has
+had
+will
+would
+can
+could
+shall
+should
+may
+might
+i'm
+it's
+i'd
+i'll
+i've
+you're
+that's
+let
+let's
+# prepositions / conjunctions / particles
+to
+of
+in
+on
+at
+for
+with
+from
+by
+up
+about
+into
+and
+or
+but
+so
+if
+then
+too
+also
+there
+here
+# politeness / request framing
+please
+thank
+thanks
+sorry
+excuse
+kindly
+like

@@ -15,13 +15,13 @@ def test_health_lists_every_service_with_a_status(client):
 
 
 def test_idle_services_are_unavailable_not_ok(client):
-    # Nothing runs before consent; the fake lip reader is unavailable too.
+    # Nothing runs before consent. Fakes say so: they report backend "fake", never "real".
     services = client.get("/health").json()["services"]
-    assert all(s["status"] == "unavailable" for s in services.values())
-    for name in ("camera", "face", "gesture"):
-        assert services[name]["detail"].startswith("not built yet") or services[name]["detail"] in {
-            "stopped"
-        }
+    for name in ("camera", "face", "gesture", "lip", "avatar"):
+        assert services[name]["status"] == "unavailable", name
+    assert services["camera"]["detail"].startswith("idle")
+    for name in ("scribe", "tts"):
+        assert services[name]["backend"] == "fake"
 
 
 def test_health_never_exposes_secrets(tmp_path):

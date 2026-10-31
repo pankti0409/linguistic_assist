@@ -54,11 +54,13 @@ class FakeTTS:
     def __init__(self, fail: bool = False) -> None:
         self.fail = fail
         self.spoken: list[str] = []
+        self.voices: list[str] = []
 
-    def synthesize(self, text: str, voice_id: str) -> bytes:
+    def synthesize(self, text: str, voice_id: str, output_format: str = "mp3_44100_128") -> bytes:
         if self.fail:
             raise ConnectionError("FakeTTS configured to fail")
         self.spoken.append(text)
+        self.voices.append(voice_id)
         return b"\x00\x00" * 160 * max(1, len(text.split()))
 
 
@@ -224,3 +226,58 @@ class FakeGestureRecognizer:
 
     def close(self) -> None:
         self.closed = True
+
+
+def tone(ms: int, freq: float = 220.0, amp: float = 0.3, rate: int = 16_000) -> bytes:
+    """Synthetic int16 sine burst (a stand-in for voiced audio in tests)."""
+    n = int(rate * ms / 1000)
+    x = amp * np.sin(2 * np.pi * freq * np.arange(n) / rate)
+    return (x * 32767).astype(np.int16).tobytes()
+
+
+def silence(ms: int, rate: int = 16_000) -> bytes:
+    return np.zeros(int(rate * ms / 1000), np.int16).tobytes()
+
+
+class FakeMic:
+    """Feeds scripted int16 audio to the callback in 30 ms blocks from a thread.
+
+    `realtime=True` paces it like a real mic, which the draft silence timer needs.
+    """
+
+    def __init__(self, audio: bytes = b"", realtime: bool = False) -> None:
+        import threading
+
+        self.audio = audio
+        self.realtime = realtime
+        self._stop = threading.Event()
+        self._thread = None
+        self.started = 0
+
+    def start(self, on_audio) -> None:
+        import threading
+        import time
+
+        self.started += 1
+        self._stop.clear()
+
+        def run():
+            block = 960  # 30 ms of int16 at 16 kHz
+            for i in range(0, len(self.audio), block):
+                if self._stop.is_set():
+                    return
+                on_audio(self.audio[i : i + block])
+                if self.realtime:
+                    time.sleep(0.03)
+
+        self._thread = threading.Thread(target=run, daemon=True)
+        self._thread.start()
+
+    def wait_done(self, timeout: float = 10.0) -> None:
+        if self._thread is not None:
+            self._thread.join(timeout)
+
+    def stop(self) -> None:
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(2)

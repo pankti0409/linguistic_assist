@@ -56,6 +56,7 @@ class SpeechEvidence(BaseModel):
     text: str
     is_final: bool
     language: str | None = None
+    confidence: float | None = None  # only when the provider returns one (D-032)
 
 
 class LipEvidence(BaseModel):
@@ -93,6 +94,8 @@ class EvidencePacket(BaseModel):
     context: list[DialogueTurn] = []  # last CONTEXT_TURNS turns
     profile_terms: list[str] = []
     phrasebook_hits: list[PhraseEntry] = []
+    # earlier yes/no questions and the patient's answers in this draft (D-035)
+    clarifications: list[dict[str, str]] = []
 
 
 # --- fusion output ----------------------------------------------------------
