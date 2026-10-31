@@ -183,3 +183,19 @@ def test_schema_is_strict_compatible():
             walk(node["items"])
 
     walk(FUSION_SCHEMA)
+
+
+def test_rate_limit_fails_fast_with_honest_reason():
+    from app.services.fusion import LLMUnavailableError
+
+    class Limited:
+        calls = 0
+
+        def complete_json(self, *a, **k):
+            Limited.calls += 1
+            raise LLMUnavailableError("RateLimitError")
+
+    f = FusionService(S, HealthRegistry(S), Limited())
+    r = f.reconstruct(packet(WORKED))
+    assert Limited.calls == 1 and r.clarification_required and r.candidates == []
+    assert "unavailable" in r.reasoning_summary

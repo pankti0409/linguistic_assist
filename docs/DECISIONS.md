@@ -221,3 +221,96 @@ published `lip.result {status: unavailable, reason: checkpoint missing, hint_onl
 and FaceService history was empty after stop. Auto-AVSR's real preprocessing ran in tests
 on our landmarks (20 x 1 x 88 x 88 output) without model weights. No lip text has been
 produced yet, and none is claimed.
+
+## M4 (2026-11-01)
+
+### D-027 Groq: strict json_schema
+The Groq structured-outputs docs list `openai/gpt-oss-120b` for strict mode. So
+`response_format={"type": "json_schema", "json_schema": {"name", "strict": true, "schema"}}`
+is used with a hand-written schema: every property required, every object
+`additionalProperties: false`, and nullable `clarifying_question` via `["string", "null"]`.
+The 3-candidate maximum and the coverage rule are checked by Pydantic and
+`coverage_errors`, not by the schema.
+
+### D-028 Groq daily token cap (blocking live checks)
+The key is on the `on_demand` tier: 200,000 tokens/day for gpt-oss-120b, 8,000/min, 1,000
+requests. On 2026-10-31/11-01 the org had already used about 199,900 tokens/day (another
+user of the key), so full reconstruction calls (~1,050 tokens each) were refused while a
+5-token call passed. Rate limits and network errors now fail fast (`LLMUnavailableError`):
+they do not use up the one retry that is meant for invalid output, and the patient sees
+"sentence suggestions unavailable right now; edit or repeat". **The live Groq run of the
+worked example is still pending.** The logic is covered by tests with a scripted LLM.
+
+### D-029 Function-word allowlists
+`prompts/function_words_{en,hi}.txt`. Negations (not/no/never, नहीं/मत/ना) are excluded
+on purpose: adding one flips the meaning. "like" (EN) and "चाहिए / chahiye" (HI) are
+allowed as request frames, following the spec's own "I would like ..." example; "want" and
+"need" are not. The Hindi list is a draft for review by a Hindi speaker. The tokenizer
+covers the Devanagari letters and matras, but not the danda "।" (found by a failing test).
+
+### D-030 Scribe batch only
+`scribe_v2` batch, per the spec's ordering. The realtime socket (`scribe_v2_realtime`) is
+deferred, so there are no `speech.partial` events yet. Request options: `file_format=
+"pcm_s16le_16"` (raw 16 kHz mono int16, no WAV wrapper), `timestamps_granularity="word"`,
+`tag_audio_events=false`. `no_verbatim` stays off so the transcript is raw. The language
+code comes back as ISO 639-3 (`eng`).
+
+### D-031 Pause segmentation for fragments
+A batch API returns one text per request. To get one fragment per utterance, mic audio is
+cut at pauses by an energy segmenter: 30 ms frames, adaptive noise floor + 12 dB (floor
+-50 dBFS), 3 loud frames to start, 700 ms quiet to end, at least 250 ms of *voiced* audio,
+15 s maximum. Utterances are transcribed one at a time, in order. Live: synthetic speech
+"wa / water / cold" with 1.5-2 s pauses gave exactly 3 utterances. On the real laptop mic,
+room sound (p90 -37 dBFS) kept one 5.3 s "utterance" open with nobody speaking; Scribe
+returned empty text and no fragment was made. This needs tuning on real recordings.
+
+### D-032 Speech confidence and empty finals
+`SpeechEvidence.confidence` (an added optional field) = exp(mean word logprob) from Scribe's
+per-word `logprob`, i.e. only provider data. `low_confidence` is flagged when the text is
+<= 2 characters or confidence < 0.4. Empty finals emit `speech.final` but create no
+fragment, since there is no content to reconstruct from.
+
+### D-033 Token cap with a reasoning model
+`max_completion_tokens=300` (spec <= 300), `reasoning_effort="low"`, `include_reasoning=
+false`. Whether 300 is enough for gpt-oss reasoning plus 3 candidates is unverified until
+the live run (D-028). The one live call that went through returned valid JSON with only 1
+candidate, which the validator rejected.
+
+### D-034 What "e2e latency" measures
+`e2e_ms` = end of capture -> `audible`. For the local tier, `audible` is when the audio is
+published to the frontend (the backend cannot observe playback). For avatar tiers (M5) it
+is Tavus' `started_speaking` event. Reports must state which.
+
+### D-035 `EvidencePacket.clarifications`
+An added field `[{question, answer}]`. Without it the LLM would see a bare "yes" fragment
+with no question to attach it to.
+
+### D-036 Failed output returns to AWAITING_CONFIRM
+If every tier fails, SPEAKING -> AWAITING_CONFIRM, which the spec diagram does not draw.
+The used confirmation_id stays dead, and a new confirm issues a new one.
+
+### D-037 Clarify answers given by button
+The answer from `POST /turn/clarify` is recorded as a `gesture`-source fragment (a deliberate
+patient input). Fragment sources are limited to speech/gesture/lip.
+
+### D-038 Post-validator details
+`added_words` are recomputed in code (tokens not in any fragment) instead of trusting the
+LLM. If one candidate survives, the result becomes clarification_required with the
+yes/no question `Did you mean: "<text>"?`. If none survive, it is a clarification result.
+The rounds cap applies after 2 answers. The fallback text excludes the yes/no answers.
+
+### D-039 Edit flow
+`/turn/confirm {edited_text}` the first time puts the text in EDITING and shows it back
+(`confirm_required: true`). Sending the identical text again speaks it. No other fields
+were needed.
+
+### D-040 Personalisation consent
+Phrasebook and profile-term reads, writes and retrieval need `personalization` consent.
+`DELETE /phrasebook` is always allowed. Revoking consent stops use but does not delete;
+deletion is a separate, explicit act.
+
+### D-041 ElevenLabs plan blocks the configured voices
+`text_to_speech` with Raju / Saavi returns **402 paid_plan_required**: "Free users cannot use
+library voices via the API." On this plan only the 21 premade voices work (e.g. Sarah
+`EXAVITQu4vr4xnSDxMaL` female, Brian `nPczCjzI2devNBz1zQrb` male; ElevenLabs labels). The
+live Scribe check used Sarah ad hoc; `.env` is unchanged pending the user's decision.

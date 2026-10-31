@@ -70,6 +70,10 @@ def load_function_words(lang: str) -> set[str]:
     return words
 
 
+class LLMUnavailableError(RuntimeError):
+    """The LLM cannot be reached right now (rate limit, network). Retrying at once won't help."""
+
+
 class GroqLLM:
     """LLMClient over Groq chat completions with strict json_schema output (groq SDK 1.7)."""
 
@@ -80,6 +84,14 @@ class GroqLLM:
         self.model = model
 
     def complete_json(self, system: str, user: str, *, temperature: float, max_tokens: int) -> str:
+        import groq
+
+        try:
+            return self._call(system, user, temperature, max_tokens)
+        except (groq.RateLimitError, groq.APIConnectionError, groq.APITimeoutError) as exc:
+            raise LLMUnavailableError(type(exc).__name__) from exc
+
+    def _call(self, system: str, user: str, temperature: float, max_tokens: int) -> str:
         res = self._client.chat.completions.create(
             model=self.model,
             messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
@@ -201,15 +213,21 @@ class FusionService:
         user = packet_json(packet)
         result: FusionResult | None = None
         errors: list[str] = []
+        raws: list[str] = []  # LLM text output only, for diagnosis
         for _attempt in range(2):  # first try plus one retry (section 8.6 D)
             try:
                 raw = self._client().complete_json(
                     self.system_prompt, user, temperature=TEMPERATURE, max_tokens=MAX_TOKENS
                 )
+            except LLMUnavailableError as exc:
+                log.warning("fusion LLM unavailable: %s", exc)
+                errors.append(f"llm unavailable: {exc}")
+                break  # an immediate retry into a rate limit cannot succeed
             except Exception as exc:
                 log.warning("fusion LLM call failed: %s", type(exc).__name__)
                 errors.append(f"llm call failed: {type(exc).__name__}")
                 continue
+            raws.append(raw[:2000])
             try:
                 candidate = FusionResult.model_validate_json(raw)
                 cov = coverage_errors(candidate, packet.fragments)
@@ -219,13 +237,14 @@ class FusionService:
                 break
             except (ValidationError, ValueError) as exc:
                 errors.append(f"invalid output: {str(exc)[:160]}")
-        self.last_debug = {"errors": errors, "dropped": []}
+        self.last_debug = {"errors": errors, "dropped": [], "raw": raws}
         if result is None:
-            return clarification(
-                "reconstruction failed validation twice; please repeat",
-                None,
-                [f.id for f in content],
-            )
+            ids = [f.id for f in content]
+            if errors and all(e.startswith(("llm unavailable", "llm call failed")) for e in errors):
+                return clarification(
+                    "sentence suggestions unavailable right now; edit or repeat", None, ids
+                )
+            return clarification("reconstruction failed validation twice; please repeat", None, ids)
         result, dropped = post_validate(result, packet, self.function_words(packet.language_pref))
         self.last_debug["dropped"] = dropped
         if lip_only(packet) and not result.clarification_required:
