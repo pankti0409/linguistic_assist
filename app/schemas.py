@@ -30,6 +30,8 @@ EventType = Literal[
     "avatar.guardrail",
     "output.fallback",
     "error",
+    # not in the spec list, but M1 acceptance needs it (D-011)
+    "mouth.activity",
 ]
 EVENT_TYPES: tuple[str, ...] = EventType.__args__  # type: ignore[attr-defined]
 

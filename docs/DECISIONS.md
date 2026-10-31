@@ -69,5 +69,72 @@ Binding to loopback does not stop a web page in the user's own browser from reac
 - The HTTP API has no client authentication. Any local process can call `/consent` today, and
   `/turn/confirm` once it exists in M4. That fits a single-user laptop PoC with R2 enforced
   server-side. Revisit in M7 (a per-launch token for the frontend).
-- `VOICE_ID` is set to "Raju" (Hindi) and "Saavi" is kept as `VOICE_ID_ALT`. The user decides
-  which voice is final.
+- ~~Voice choice~~: resolved in M1 (D-017). Both voices are kept, and the user switches at runtime.
+
+## M1 (2026-10-31)
+
+### D-010 MediaPipe 1.2.0, verified from installed source
+MediaPipe 1.2.0 is newer than the spec author's reference. Names were checked in
+`mediapipe/tasks/python/vision/face_landmarker.py`: `FaceLandmarkerOptions(base_options,
+running_mode, num_faces, output_face_blendshapes, output_facial_transformation_matrixes,
+result_callback)`, `detect_async(image, timestamp_ms)` (raises on a timestamp that is not
+increasing), `Blendshapes.JAW_OPEN=25` / `MOUTH_CLOSE=27` (looked up by `category_name`
+"jawOpen" / "mouthClose"), and `FaceLandmarksConnections.FACE_LANDMARKS_LIPS`, which gives
+40 lip landmark indices. Model URLs are the "Latest" links on the official guide pages
+(`.../float16/latest/*.task`). The SHA-256 of each bundle is printed by
+`scripts/download_models.py`:
+- face_landmarker.task      64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff
+- gesture_recognizer.task   97952348cf6a6a4915c2ea1496b4b37ebabc50cbbf80571435643c455f2b0482
+Because `latest` can move, these hashes record what was tested.
+
+### D-011 New WS event `mouth.activity`
+M1 acceptance asks for streamed mouth_activity events, but the section 7 event list has no
+type for them. Added `mouth.activity`, published when its state flips plus a 1 s heartbeat.
+Payload, derived features only (R8): `active, changed, face_present, level, yaw_deg,
+pitch_deg, obs_ts_ms, lag_ms`. No landmarks or pixels.
+
+### D-012 mouth_activity thresholds are provisional
+Activity = max(std(jawOpen), std(mouthClose)) over `MOUTH_WINDOW_S`=0.6 s. It turns on above
+`MOUTH_ON_STD`=0.035 and off below `MOUTH_OFF_STD`=0.015. All three are env-overridable.
+Live run on the dev webcam: still periods measured 0.0001-0.025, activations measured
+0.036-0.125. The builder could not confirm that those activations matched real speech, and
+large head turns (|yaw| > 40 degrees) were present during the run. Tune them with
+`scripts/watch_events.py --changes` while someone talks, then mouths silently, then stays
+still.
+
+### D-013 Camera lifecycle follows `camera` consent
+`POST /consent {camera}` starts CameraHub and FaceService. `DELETE /consent/camera` stops
+both and clears frames and observations from memory. The spec defines no camera start route,
+and this keeps "processing runs only while consent is held" true by construction.
+
+### D-014 Tavus renamed personas to PALs and replicas to faces
+The current `https://docs.tavus.io/openapi.yaml` lists `/v2/pals` and `/v2/faces`. It says
+`/v2/replicas` and `replica_id` remain legacy aliases. `/v2/personas/{id}` still answered 200
+in M0. `check_env.py` uses the documented `GET /v2/pals/{id}` and `GET /v2/faces/{id}`. The
+env names `TAVUS_PERSONA_ID` / `TAVUS_REPLICA_ID` are kept, to match the spec.
+The existing PAL "Sahayak" (pb57f82ae2b1) already has a relay system prompt and guardrails
+(`g17d4d797de66`). It also has `dynamic_greeting: true`, which conflicts with "speak only
+confirmed text". This must be handled in M5, before any session is opened. M5 also has to
+re-check every field in section 8.9 against the PAL schema.
+
+### D-015 OpenCV: contrib build only
+mediapipe 1.2.0 depends on `opencv-contrib-python`. With `opencv-python` also installed there
+are two competing `cv2` packages, so `opencv-python` was removed and only the contrib build
+is listed.
+
+### D-016 Debounced face presence
+On the real webcam, raw detections alternated hit/miss frame to frame, which spammed events
+and kept the activity window from filling. `face_present` in events and health is now
+debounced: on after 2 consecutive hits, off after 5 consecutive misses (~0.33 s). Raw
+per-frame presence is kept in `FaceService.history()`, because the M3 rule "face missing
+> 20% of frames" must use raw frames.
+
+### D-017 Male / female voice switching
+`.env` now has `VOICE_ID_MALE` (Raju) and `VOICE_ID_FEMALE` (Saavi), plus `VOICE_DEFAULT`.
+`GET /voice` shows the slots, and `PUT /voice {"gender": "male" | "female"}` switches at
+runtime. The TTS service (M5) reads the selection at speak time. Each slot's gender comes
+from ElevenLabs' `labels.gender`, which `check_env.py` verifies (both PASS), not from the
+voice name. Both voices are Hindi library voices. Not covered by the switch:
+- The Tavus face (`rbd2cdb9a3f3`, "Helen - Home") does not change with the voice.
+- In the text-echo tier (8.8 tier 2), Tavus uses the PAL's own TTS voice. Switching there
+  would need a second PAL or a per-session layer override, to be checked in M5.

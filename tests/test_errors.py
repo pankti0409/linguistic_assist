@@ -35,8 +35,9 @@ def test_unhandled_error_hides_details(settings):
     from fastapi.testclient import TestClient
 
     from app.main import create_app
+    from tests.conftest import fake_overrides
 
-    app = create_app(settings)
+    app = create_app(settings, fake_overrides())
 
     @app.get("/_boom")
     def _x():

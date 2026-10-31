@@ -93,6 +93,8 @@ class FakeLipReader:
 class VideoFileCamera:
     """FrameSource over a video file, looping at the end (SIMULATE=1 camera)."""
 
+    description = "video file (SIMULATE=1)"
+
     def __init__(self, path: str, loop: bool = True) -> None:
         self.path = path
         self.loop = loop
@@ -119,3 +121,74 @@ class VideoFileCamera:
         if self._cap is not None:
             self._cap.release()
             self._cap = None
+
+
+class SyntheticCamera:
+    """FrameSource that makes plain numbered frames in memory. `fail_opens` simulates a
+    busy camera, and `fail_after` simulates a camera that stops delivering frames."""
+
+    description = "synthetic frames (test)"
+
+    def __init__(
+        self, size: tuple[int, int] = (64, 48), fail_opens: int = 0, fail_after: int | None = None
+    ) -> None:
+        self.size = size
+        self.fail_opens = fail_opens
+        self.fail_after = fail_after
+        self.opens = 0
+        self.reads = 0
+        self.closed = 0
+        self._open = False
+
+    def open(self) -> bool:
+        self.opens += 1
+        if self.opens <= self.fail_opens:
+            return False
+        self._open = True
+        return True
+
+    def read(self) -> tuple[bool, np.ndarray | None]:
+        if not self._open or (self.fail_after is not None and self.reads >= self.fail_after):
+            return False, None
+        self.reads += 1
+        w, h = self.size
+        return True, np.full((h, w, 3), self.reads % 256, np.uint8)
+
+    def close(self) -> None:
+        self._open = False
+        self.closed += 1
+
+
+class FakeFaceDetector:
+    """FaceDetector that answers each frame synchronously with a scripted FaceObservation.
+
+    `script(ts_ms, call_index)` returns the observation; the default reports no face.
+    Use `FakeFaceDetector.factory(...)` where a DetectorFactory is expected.
+    """
+
+    def __init__(self, on_observation, script=None) -> None:
+        from app.services.face import FaceObservation
+
+        self._cb = on_observation
+        self._script = script or (lambda ts, i: FaceObservation(ts_ms=ts, face_present=False))
+        self.timestamps: list[int] = []
+        self.closed = False
+
+    @classmethod
+    def factory(cls, script=None, created: list | None = None):
+        def make(_model_path, on_observation):
+            det = cls(on_observation, script)
+            if created is not None:
+                created.append(det)
+            return det
+
+        return make
+
+    def detect_async(self, bgr: np.ndarray, ts_ms: int) -> None:
+        if self.timestamps and ts_ms <= self.timestamps[-1]:
+            raise ValueError("timestamps must be strictly increasing (MediaPipe contract)")
+        self.timestamps.append(ts_ms)
+        self._cb(self._script(ts_ms, len(self.timestamps) - 1))
+
+    def close(self) -> None:
+        self.closed = True

@@ -6,7 +6,7 @@ from app.api.ws import origin_allowed
 from app.config import load_settings
 from app.core.consent import ConsentRegistry
 from app.main import create_app
-from tests.conftest import WS_URL
+from tests.conftest import WS_URL, fake_overrides
 
 
 @pytest.mark.parametrize(
@@ -48,9 +48,11 @@ def test_ws_accepts_loopback_origin(client):
 
 def test_foreign_host_header_refused(settings):
     # DNS rebinding: attacker's name resolves to 127.0.0.1 but the Host header is theirs.
-    with TestClient(create_app(settings), base_url="http://rebind.evil.example") as c:
+    with TestClient(
+        create_app(settings, fake_overrides()), base_url="http://rebind.evil.example"
+    ) as c:
         assert c.get("/health").status_code == 400
-    with TestClient(create_app(settings), base_url="http://localhost:8765") as c:
+    with TestClient(create_app(settings, fake_overrides()), base_url="http://localhost:8765") as c:
         assert c.get("/health").status_code == 200
 
 

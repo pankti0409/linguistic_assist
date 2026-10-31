@@ -5,9 +5,11 @@ pydantic>=2.7
 python-dotenv>=1.0
 httpx>=0.27
 numpy>=1.26
-opencv-python>=4.9
+# mediapipe depends on opencv-contrib-python; installing opencv-python too gives two
+# competing cv2 packages, so only the contrib build is listed (D-015).
+opencv-contrib-python>=4.9
+mediapipe>=1.2         # tasks API checked against 1.2.0 source (D-010)
 # Added at the milestone that first uses them (versions verified then):
-# mediapipe        (M1, M2)
 # elevenlabs       (M4, M5)
 # groq             (M4)
 # sounddevice      (M4)

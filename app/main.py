@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -10,13 +13,17 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from app.adapters.interfaces import FrameSource
 from app.api import routes_misc, ws
 from app.config import BIND_HOST, Settings, load_settings
 from app.core.consent import ConsentRegistry
 from app.core.errors import AppError
 from app.core.events import EventBus
 from app.core.health import HealthRegistry
+from app.core.voice import VoiceSelector
 from app.schemas import ErrorBody
+from app.services.camera import CameraHub
+from app.services.face import DetectorFactory, FaceService
 
 log = logging.getLogger("ps16")
 
@@ -26,13 +33,56 @@ def _error(status: int, code: str, message: str, recoverable: bool) -> JSONRespo
     return JSONResponse(status_code=status, content=body.model_dump())
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+@dataclass
+class Overrides:
+    """Swap real devices for fakes (tests, SIMULATE). None means the real implementation."""
+
+    frame_source_factory: Callable[[], FrameSource] | None = None
+    face_detector_factory: DetectorFactory | None = None
+
+
+def _wire_camera(app: FastAPI, overrides: Overrides) -> None:
+    s, bus, health, consent = (
+        app.state.settings,
+        app.state.bus,
+        app.state.health,
+        app.state.consent,
+    )
+    hub = CameraHub(s, bus, health, consent, source_factory=overrides.frame_source_factory)
+    face = FaceService(s, hub, bus, health, consent, overrides.face_detector_factory)
+    app.state.camera, app.state.face = hub, face
+
+    # Camera processing runs exactly while `camera` consent is held (R3, D-013).
+    def on_grant(purpose: str) -> None:
+        if purpose == "camera":
+            hub.start()
+            face.start()
+
+    def on_revoke(purpose: str) -> None:
+        if purpose == "camera":
+            face.stop()
+            hub.stop()
+
+    consent.on_grant(on_grant)
+    consent.on_revoke(on_revoke)
+
+
+def create_app(settings: Settings | None = None, overrides: Overrides | None = None) -> FastAPI:
     settings = settings or load_settings()
-    app = FastAPI(title="PS-16 communication assistant backend", version="0.0.0")
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        yield
+        app.state.face.stop()
+        app.state.camera.stop()
+
+    app = FastAPI(title="PS-16 communication assistant backend", version="0.0.0", lifespan=lifespan)
     app.state.settings = settings
     app.state.bus = EventBus()
     app.state.consent = ConsentRegistry()
     app.state.health = HealthRegistry(settings)
+    app.state.voice = VoiceSelector(settings)
+    _wire_camera(app, overrides or Overrides())
 
     @app.exception_handler(AppError)
     async def _app_error(_: Request, exc: AppError) -> JSONResponse:

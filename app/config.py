@@ -39,7 +39,10 @@ class Settings:
     elevenlabs_api_key: str = ""
     groq_api_key: str = ""
     llm_model: str = "openai/gpt-oss-120b"
-    voice_id: str = ""
+    voice_id: str = ""  # legacy single voice; fills the default slot if that slot is empty
+    voice_id_male: str = ""
+    voice_id_female: str = ""
+    voice_default: str = "female"
     tavus_api_key: str = ""
     tavus_replica_id: str = ""
     tavus_persona_id: str = ""
@@ -55,6 +58,12 @@ class Settings:
     port: int = 8765  # 8000 is taken by another local app on the dev machine (D-008)
     # Browser origins allowed to open /ws (D-009). Loopback on any port is always allowed.
     allowed_origins: tuple[str, ...] = ()
+    face_model: Path = field(default_factory=lambda: ROOT / "assets" / "face_landmarker.task")
+
+    # mouth_activity detector (not in the spec table; provisional, see D-012)
+    mouth_window_s: float = 0.6
+    mouth_on_std: float = 0.035
+    mouth_off_std: float = 0.015
 
     # section 8.10 constants
     camera_fps: int = 30
@@ -78,6 +87,10 @@ class Settings:
             raise ValueError("DEBUG_SAVE_CLIPS must be false (R8: no raw media on disk)")
         if self.tavus_pipeline_mode not in {"full", "echo"}:
             raise ValueError("TAVUS_PIPELINE_MODE must be 'full' or 'echo'")
+        if self.voice_default not in {"male", "female"}:
+            raise ValueError("VOICE_DEFAULT must be 'male' or 'female'")
+        if self.mouth_off_std >= self.mouth_on_std:
+            raise ValueError("MOUTH_OFF_STD must be below MOUTH_ON_STD (hysteresis)")
 
 
 def load_settings(env: Mapping[str, str | None] | None = None) -> Settings:
@@ -97,6 +110,9 @@ def load_settings(env: Mapping[str, str | None] | None = None) -> Settings:
         groq_api_key=g("GROQ_API_KEY") or "",
         llm_model=g("LLM_MODEL") or d.llm_model,
         voice_id=g("VOICE_ID") or "",
+        voice_id_male=g("VOICE_ID_MALE") or "",
+        voice_id_female=g("VOICE_ID_FEMALE") or "",
+        voice_default=g("VOICE_DEFAULT") or d.voice_default,
         tavus_api_key=g("TAVUS_API_KEY") or "",
         tavus_replica_id=g("TAVUS_REPLICA_ID") or "",
         tavus_persona_id=g("TAVUS_PERSONA_ID") or "",
@@ -111,6 +127,10 @@ def load_settings(env: Mapping[str, str | None] | None = None) -> Settings:
         allowed_origins=tuple(
             o.strip() for o in (g("ALLOWED_ORIGINS") or "").split(",") if o.strip()
         ),
+        face_model=Path(g("FACE_MODEL")) if g("FACE_MODEL") else d.face_model,
+        mouth_window_s=float(g("MOUTH_WINDOW_S") or d.mouth_window_s),
+        mouth_on_std=float(g("MOUTH_ON_STD") or d.mouth_on_std),
+        mouth_off_std=float(g("MOUTH_OFF_STD") or d.mouth_off_std),
         camera_fps=int(g("CAMERA_FPS") or d.camera_fps),
         camera_size=_size(g("CAMERA_SIZE"), d.camera_size),
         vision_fps=int(g("VISION_FPS") or d.vision_fps),

@@ -83,7 +83,9 @@ class HealthRegistry:
         if name == "scribe":
             return bool(s.elevenlabs_api_key)
         if name == "tts":
-            return bool(s.elevenlabs_api_key and s.voice_id)
+            return bool(
+                s.elevenlabs_api_key and (s.voice_id or s.voice_id_male or s.voice_id_female)
+            )
         if name == "avatar":
             return bool(s.tavus_api_key and s.tavus_replica_id and s.tavus_persona_id)
         return None  # camera/face/gesture have no credentials

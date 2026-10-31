@@ -22,6 +22,14 @@ class FrameSource(Protocol):
 
 
 @runtime_checkable
+class FaceDetector(Protocol):
+    """Async face landmarker: results arrive later through the callback given at creation."""
+
+    def detect_async(self, bgr: np.ndarray, ts_ms: int) -> None: ...
+    def close(self) -> None: ...
+
+
+@runtime_checkable
 class SpeechToText(Protocol):
     def transcribe(
         self, pcm16: bytes, sample_rate: int, language: str | None = None

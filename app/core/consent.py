@@ -15,19 +15,24 @@ from app.schemas import CONSENT_PURPOSES, ConsentRecord
 
 log = logging.getLogger(__name__)
 
-RevokeListener = Callable[[str], None]
+Listener = Callable[[str], None]
 
 
 class ConsentRegistry:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._granted: dict[str, int] = {}
-        self._on_revoke: list[RevokeListener] = []
+        self._on_revoke: list[Listener] = []
+        self._on_grant: list[Listener] = []
 
     def grant(self, purpose: str) -> ConsentRecord:
         self._check(purpose)
         with self._lock:
+            new = purpose not in self._granted
             self._granted[purpose] = now_ms()
+            listeners = list(self._on_grant)
+        if new:
+            self._notify(listeners, purpose)  # e.g. camera consent starts the CameraHub
         return self.record(purpose)
 
     def revoke(self, purpose: str) -> ConsentRecord:
@@ -36,12 +41,16 @@ class ConsentRegistry:
             had = self._granted.pop(purpose, None) is not None
             listeners = list(self._on_revoke)
         if had:
-            for cb in listeners:
-                try:
-                    cb(purpose)  # running services stop themselves here
-                except Exception:  # one failing service must not keep the others running
-                    log.exception("consent revoke listener failed for %s", purpose)
+            self._notify(listeners, purpose)  # running services stop themselves here
         return self.record(purpose)
+
+    @staticmethod
+    def _notify(listeners: list[Listener], purpose: str) -> None:
+        for cb in listeners:
+            try:
+                cb(purpose)
+            except Exception:  # one failing service must not block the others
+                log.exception("consent listener failed for %s", purpose)
 
     def has(self, purpose: str) -> bool:
         self._check(purpose)
@@ -60,9 +69,13 @@ class ConsentRegistry:
     def all(self) -> list[ConsentRecord]:
         return [self.record(p) for p in CONSENT_PURPOSES]
 
-    def on_revoke(self, cb: RevokeListener) -> None:
+    def on_revoke(self, cb: Listener) -> None:
         with self._lock:
             self._on_revoke.append(cb)
+
+    def on_grant(self, cb: Listener) -> None:
+        with self._lock:
+            self._on_grant.append(cb)
 
     @staticmethod
     def _check(purpose: str) -> None:

@@ -27,6 +27,7 @@ def test_spec_event_types_complete():
         "avatar.guardrail",
         "output.fallback",
         "error",
+        "mouth.activity",  # added in M1 (D-011)
     }
 
 
