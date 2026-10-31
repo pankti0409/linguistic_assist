@@ -9,8 +9,8 @@ numpy>=1.26
 # competing cv2 packages, so only the contrib build is listed (D-015).
 opencv-contrib-python>=4.9
 mediapipe>=1.2         # tasks API checked against 1.2.0 source (D-010)
-# Added at the milestone that first uses them (versions verified then):
-# elevenlabs       (M4, M5)
-# groq             (M4)
-# sounddevice      (M4)
-# daily-python     (M5)
+# Hosted-service SDKs and audio (signatures checked against these versions):
+elevenlabs>=2.75
+groq>=1.7
+sounddevice>=0.5
+daily-python>=0.36   # M5: backend joins the Tavus room (BSD-2-Clause)

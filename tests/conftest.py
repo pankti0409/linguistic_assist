@@ -7,12 +7,14 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.adapters.fakes import (
+    FakeAvatar,
     FakeFaceDetector,
     FakeGestureRecognizer,
     FakeGroq,
     FakeLipReader,
     FakeMic,
     FakeScribe,
+    FakeTavusAPI,
     FakeTTS,
     SyntheticCamera,
 )
@@ -43,6 +45,8 @@ def fake_overrides() -> Overrides:
         llm=FakeGroq(),
         tts=FakeTTS(),
         data_dir=Path(tempfile.mkdtemp(prefix="ps16-data-")),
+        tavus_api=FakeTavusAPI(),
+        avatar_transport_factory=FakeAvatar,
     )
 
 

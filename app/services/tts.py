@@ -78,6 +78,11 @@ class SpeechOutput:
         else:
             health.set("tts", "unavailable", "ELEVENLABS_API_KEY or voice not set")
 
+    def interrupt(self) -> None:
+        """Stop avatar speech (on reject or a new turn). Local audio is the frontend's."""
+        if self.avatar is not None:
+            self.avatar.interrupt()
+
     def _client(self):
         if self._tts is None:
             if not self._s.elevenlabs_api_key:

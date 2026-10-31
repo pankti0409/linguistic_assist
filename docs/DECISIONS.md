@@ -314,3 +314,50 @@ deletion is a separate, explicit act.
 library voices via the API." On this plan only the 21 premade voices work (e.g. Sarah
 `EXAVITQu4vr4xnSDxMaL` female, Brian `nPczCjzI2devNBz1zQrb` male; ElevenLabs labels). The
 live Scribe check used Sarah ad hoc; `.env` is unchanged pending the user's decision.
+
+## M5 (2026-11-01)
+
+### D-042 Greeting blocked per conversation, PAL untouched
+The current OpenAPI allows `dynamic_greeting` per conversation ("Optional override of the
+PAL's `dynamic_greeting`"). Every conversation is created with `dynamic_greeting: false`
+and no `custom_greeting`, so the avatar's first words are always a confirmed echo. The
+existing "Sahayak" PAL is not modified: the user chose no live Tavus calls, and this
+override makes a change unnecessary.
+
+### D-043 Echo transport and ladder, as built
+- The backend joins the room with daily-python 0.36 (installs and imports on Windows),
+  `client_settings={"inputs": {"camera": False, "microphone": False}}`, and is the only
+  sender of `conversation.echo` / `conversation.interrupt`. So the `speak_token` fallback
+  in the spec is not needed.
+- Tier 1 audio echo: ElevenLabs `pcm_16000` -> base64, `sample_rate: 16000`, one stable
+  `inference_id`, `done: false` until the last chunk. The OpenAPI says audio is
+  "Base64 audio ... (PCM or pipeline-specific encoding)" and that `done` must end true. The
+  Daily app-message size limit and the PAL's acceptance of audio echo in `full` mode are
+  **not verified**. Chunk size is `AVATAR_CHUNK_BYTES` (16,000 raw bytes); tier 1 can be
+  switched off with `AVATAR_AUDIO_ECHO=0`.
+- A tier counts as spoken only when `conversation.replica.started_speaking` arrives
+  within `AVATAR_START_TIMEOUT_S` (6 s). Otherwise `conversation.interrupt` is sent before
+  the next tier, so two tiers never speak one message (tested).
+- R9: `synthetic` and `disclosure` are added as top-level keys on every app message, next
+  to the documented ones. Whether Tavus tolerates extra keys is unverified live.
+- `callback_url` (guardrail webhook) is set only when `TAVUS_CALLBACK_URL` is configured.
+  Tavus cannot reach a 127.0.0.1 server without a tunnel. Guardrail app-messages that
+  arrive in the room are forwarded too.
+
+### D-044 Not done in M5, by decision
+No Tavus API call or conversation was made (user decision: code only). Therefore:
+- **The confirmed sentence has not been spoken by the avatar**, and the 10-sentence
+  verbatim test (EN / HI / mixed, `tests/test_persona_live.py`) has not run. The decision
+  to switch `TAVUS_PIPELINE_MODE` from full to echo is still open.
+- The live red-team harness is a placeholder that fails if enabled. It needs the
+  `conversation.utterance` (role `pal`) transcript events, collected over daily-python.
+- `scripts/tavus_setup.py` has only been dry-run. It creates new guardrails and a new PAL
+  (`perception_model: "off"`, `dynamic_greeting: false`, `guardrail_tags: ["ps16"]`) and
+  never modifies an existing PAL. Tavus' STT layer is left at its default: the spec asks
+  for "STT off", but the OpenAPI `layers.stt` has no documented "off" value. A relay PAL
+  only speaks echo text, so STT output is never spoken.
+Fallback was verified live: with no avatar session, a real end-to-end turn spoke through
+tier 3 (real Scribe -> fallback -> edit-confirm -> real ElevenLabs Flash v2.5, premade
+voice via env override). That one turn measured scribe 672 ms, TTS 515 ms, e2e 1,703 ms
+(to audio published). "Killing Tavus" is covered by tests (transport raising, and avatar
+silent), not live.

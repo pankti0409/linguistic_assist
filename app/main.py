@@ -16,7 +16,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.adapters.interfaces import FrameSource
-from app.api import routes_gesture, routes_misc, routes_turn, ws
+from app.api import routes_avatar, routes_gesture, routes_misc, routes_turn, ws
 from app.config import BIND_HOST, ROOT, Settings, load_settings
 from app.core.confirmation import ConfirmationRegistry
 from app.core.consent import ConsentRegistry
@@ -29,6 +29,7 @@ from app.core.timing import Metrics
 from app.core.turn_machine import TurnMachine
 from app.core.voice import VoiceSelector
 from app.schemas import ErrorBody
+from app.services.avatar import AvatarService
 from app.services.camera import CameraHub
 from app.services.face import DetectorFactory, FaceService
 from app.services.fusion import FusionService
@@ -59,6 +60,8 @@ class Overrides:
     llm: object | None = None  # LLMClient
     tts: object | None = None  # TextToSpeech
     data_dir: Path | None = None  # phrasebook + profile terms (default: ./data)
+    tavus_api: object | None = None  # TavusREST
+    avatar_transport_factory: Callable[[], object] | None = None
 
 
 def _wire_turns(app: FastAPI, overrides: Overrides) -> None:
@@ -76,9 +79,21 @@ def _wire_turns(app: FastAPI, overrides: Overrides) -> None:
     app.state.metrics = Metrics()
     app.state.scribe = ScribeService(s, bus, health, consent, overrides.stt, overrides.mic_factory)
     app.state.fusion = FusionService(s, health, overrides.llm)
-    app.state.speech = SpeechOutput(
-        s, bus, health, app.state.confirmations, app.state.voice, overrides.tts
+    app.state.avatar = AvatarService(
+        s,
+        bus,
+        health,
+        consent,
+        overrides.tavus_api,
+        overrides.avatar_transport_factory,
+        start_timeout_s=s.avatar_start_timeout_s,
+        audio_echo=s.avatar_audio_echo,
+        chunk_bytes=s.avatar_chunk_bytes,
     )
+    app.state.speech = SpeechOutput(
+        s, bus, health, app.state.confirmations, app.state.voice, overrides.tts, app.state.avatar
+    )
+    consent.on_revoke(lambda p: app.state.avatar.end_session() if p == "avatar" else None)
     app.state.turns = TurnMachine(
         s,
         bus,
@@ -137,6 +152,7 @@ def create_app(settings: Settings | None = None, overrides: Overrides | None = N
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         yield
+        app.state.avatar.end_session()
         app.state.turns.shutdown()
         app.state.scribe.shutdown()
         app.state.lip.shutdown()
@@ -178,6 +194,7 @@ def create_app(settings: Settings | None = None, overrides: Overrides | None = N
     app.include_router(routes_misc.router)
     app.include_router(routes_gesture.router)
     app.include_router(routes_turn.router)
+    app.include_router(routes_avatar.router)
     app.include_router(ws.router)
     return app
 

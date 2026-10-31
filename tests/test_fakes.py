@@ -7,6 +7,7 @@ from app.adapters.fakes import (
     FakeGroq,
     FakeLipReader,
     FakeScribe,
+    FakeTavusAPI,
     FakeTTS,
     VideoFileCamera,
 )
@@ -18,6 +19,7 @@ def test_fakes_satisfy_interfaces():
     assert isinstance(FakeGroq(), i.LLMClient)
     assert isinstance(FakeTTS(), i.TextToSpeech)
     assert isinstance(FakeAvatar(), i.AvatarTransport)
+    assert isinstance(FakeTavusAPI(), i.TavusREST)
     assert isinstance(FakeLipReader(), i.LipReader)
     assert isinstance(VideoFileCamera("x.mp4"), i.FrameSource)
 
@@ -37,16 +39,21 @@ def test_fake_groq_scripted_and_exhaustion():
 
 
 def test_fake_tts_and_avatar_record_and_fail():
-    t, a = FakeTTS(), FakeAvatar()
+    t = FakeTTS()
     assert t.synthesize("hello there", "v") and t.spoken == ["hello there"]
-    a.echo_text("c1", "hi")
-    a.interrupt("c1")
-    assert a.spoken == [("c1", "hi")] and a.interrupts == ["c1"]
     with pytest.raises(ConnectionError):
         FakeTTS(fail=True).synthesize("x", "v")
-    with pytest.raises(ConnectionError):
-        FakeAvatar(fail=True).echo_text("c", "x")
     assert FakeTTS(fail=True).spoken == []
+    a, got = FakeAvatar(), []
+    a.join("https://tavus.daily.co/c1", got.append)
+    a.send({"event_type": "conversation.echo", "properties": {"modality": "text", "done": True}})
+    assert got == [{"event_type": "conversation.replica.started_speaking"}]
+    quiet = FakeAvatar(silent_modalities=("text",))
+    quiet.join("u", got.append)
+    quiet.send({"event_type": "conversation.echo", "properties": {"modality": "text"}})
+    assert len(got) == 1 and len(quiet.echoes("text")) == 1
+    with pytest.raises(ConnectionError):
+        FakeAvatar(fail_join=True).join("u", got.append)
 
 
 def test_fake_lip_reader_defaults_to_unavailable():

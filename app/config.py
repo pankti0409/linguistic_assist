@@ -47,6 +47,10 @@ class Settings:
     tavus_replica_id: str = ""
     tavus_persona_id: str = ""
     tavus_pipeline_mode: str = "full"
+    tavus_callback_url: str = ""  # optional; Tavus cannot reach 127.0.0.1 without a tunnel
+    avatar_audio_echo: bool = True  # ladder tier 1; False starts at text echo
+    avatar_start_timeout_s: float = 6.0
+    avatar_chunk_bytes: int = 16000
 
     # runtime switches
     simulate: bool = False
@@ -118,6 +122,10 @@ def load_settings(env: Mapping[str, str | None] | None = None) -> Settings:
         tavus_replica_id=g("TAVUS_REPLICA_ID") or "",
         tavus_persona_id=g("TAVUS_PERSONA_ID") or "",
         tavus_pipeline_mode=g("TAVUS_PIPELINE_MODE") or d.tavus_pipeline_mode,
+        tavus_callback_url=g("TAVUS_CALLBACK_URL") or "",
+        avatar_audio_echo=_bool(g("AVATAR_AUDIO_ECHO"), d.avatar_audio_echo),
+        avatar_start_timeout_s=float(g("AVATAR_START_TIMEOUT_S") or d.avatar_start_timeout_s),
+        avatar_chunk_bytes=int(g("AVATAR_CHUNK_BYTES") or d.avatar_chunk_bytes),
         simulate=_bool(g("SIMULATE"), d.simulate),
         camera_source=g("CAMERA_SOURCE") or d.camera_source,
         lip_enabled=_bool(g("LIP_ENABLED"), d.lip_enabled),

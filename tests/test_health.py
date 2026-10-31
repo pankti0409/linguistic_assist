@@ -17,10 +17,13 @@ def test_health_lists_every_service_with_a_status(client):
 def test_idle_services_are_unavailable_not_ok(client):
     # Nothing runs before consent. Fakes say so: they report backend "fake", never "real".
     services = client.get("/health").json()["services"]
-    for name in ("camera", "face", "gesture", "lip", "avatar"):
+    for name in ("camera", "face", "gesture", "lip"):
         assert services[name]["status"] == "unavailable", name
     assert services["camera"]["detail"].startswith("idle")
-    for name in ("scribe", "tts"):
+    assert (
+        services["avatar"]["status"] == "degraded" and "no session" in services["avatar"]["detail"]
+    )
+    for name in ("scribe", "tts", "avatar"):
         assert services[name]["backend"] == "fake"
 
 

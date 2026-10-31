@@ -65,18 +65,59 @@ class FakeTTS:
 
 
 class FakeAvatar:
+    """AvatarTransport stand-in. Records every app message and, like the Tavus PAL, answers
+    an echo with started_speaking unless told to stay silent for that modality."""
+
+    def __init__(self, silent_modalities: tuple[str, ...] = (), fail_join: bool = False):
+        self.silent = set(silent_modalities)
+        self.fail_join = fail_join
+        self.sent: list[dict] = []
+        self.joined: list[str] = []
+        self.left = 0
+        self._cb = None
+
+    def join(self, conversation_url: str, on_message) -> None:
+        if self.fail_join:
+            raise ConnectionError("FakeAvatar join refused")
+        self.joined.append(conversation_url)
+        self._cb = on_message
+
+    def send(self, message: dict) -> None:
+        self.sent.append(message)
+        props = message.get("properties") or {}
+        if message.get("event_type") == "conversation.echo" and props.get("done", True):
+            if props.get("modality", "text") not in self.silent and self._cb:
+                self._cb({"event_type": "conversation.replica.started_speaking"})
+
+    def leave(self) -> None:
+        self.left += 1
+
+    def echoes(self, modality: str | None = None) -> list[dict]:
+        out = [m for m in self.sent if m.get("event_type") == "conversation.echo"]
+        if modality:
+            out = [m for m in out if m["properties"].get("modality") == modality]
+        return out
+
+
+class FakeTavusAPI:
     def __init__(self, fail: bool = False) -> None:
         self.fail = fail
-        self.spoken: list[tuple[str, str]] = []
-        self.interrupts: list[str] = []
+        self.created: list[dict] = []
+        self.ended: list[str] = []
 
-    def echo_text(self, conversation_id: str, text: str) -> None:
+    def create_conversation(self, body: dict) -> dict:
         if self.fail:
-            raise ConnectionError("FakeAvatar configured to fail")
-        self.spoken.append((conversation_id, text))
+            raise ConnectionError("FakeTavusAPI down")
+        self.created.append(body)
+        cid = f"c{len(self.created):04d}"
+        return {
+            "conversation_id": cid,
+            "conversation_url": f"https://tavus.daily.co/{cid}",
+            "status": "active",
+        }
 
-    def interrupt(self, conversation_id: str) -> None:
-        self.interrupts.append(conversation_id)
+    def end_conversation(self, conversation_id: str) -> None:
+        self.ended.append(conversation_id)
 
 
 @dataclass
