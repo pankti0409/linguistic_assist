@@ -152,3 +152,7 @@ data/*
 *.mp4
 *.avi
 *.npy
+
+# evaluation cache (LLM text outputs) and raw results
+evaluation/cache/
+evaluation/results.json

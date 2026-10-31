@@ -1,0 +1,820 @@
+[
+ {
+  "id": "clear-01",
+  "split": "test",
+  "language": "en",
+  "category": "clear_speech",
+  "synthetic": true,
+  "fragments": [
+   {
+    "source": "speech",
+    "text": "I need the bathroom",
+    "gap_ms": 1500
+   }
+  ],
+  "speaker_audio_ref": null,
+  "partner_line": null,
+  "gesture_tokens": [],
+  "lip_ref": null,
+  "profile_terms": [],
+  "phrasebook": [],
+  "target_sentence": "I need the bathroom.",
+  "allowed_additions": [],
+  "intent_label": "need_bathroom",
+  "intent_keywords": [
+   "bathroom"
+  ],
+  "expected_clarification": false
+ },
+ {
+  "id": "clear-02",
+  "split": "tune",
+  "language": "en",
+  "category": "clear_speech",
+  "synthetic": true,
+  "fragments": [
+   {
+    "source": "speech",
+    "text": "please call my daughter",
+    "gap_ms": 1500
+   }
+  ],
+  "speaker_audio_ref": null,
+  "partner_line": null,
+  "gesture_tokens": [],
+  "lip_ref": null,
+  "profile_terms": [],
+  "phrasebook": [],
+  "target_sentence": "Please call my daughter.",
+  "allowed_additions": [],
+  "intent_label": "call_family",
+  "intent_keywords": [
+   "call",
+   "daughter"
+  ],
+  "expected_clarification": false
+ },
+ {
+  "id": "ctx-01",
+  "split": "test",
+  "language": "en",
+  "category": "context_qa",
+  "synthetic": true,
+  "fragments": [
+   {
+    "source": "speech",
+    "text": "wa",
+    "gap_ms": 1200
+   },
+   {
+    "source": "speech",
+    "text": "water",
+    "gap_ms": 2700
+   },
+   {
+    "source": "speech",
+    "text": "cold",
+    "gap_ms": 4200
+   }
+  ],
+  "speaker_audio_ref": null,
+  "partner_line": "Water or tea?",
+  "gesture_tokens": [],
+  "lip_ref": null,
+  "profile_terms": [],
+  "phrasebook": [],
+  "target_sentence": "I would like cold water, please.",
+  "allowed_additions": [],
+  "intent_label": "request_drink",
+  "intent_keywords": [
+   "water",
+   "cold"
+  ],
+  "expected_clarification": false
+ },
+ {
+  "id": "ctx-02",
+  "split": "test",
+  "language": "en",
+  "category": "context_qa",
+  "synthetic": true,
+  "fragments": [
+   {
+    "source": "speech",
+    "text": "tea",
+    "gap_ms": 1500
+   },
+   {
+    "source": "speech",
+    "text": "sugar",
+    "gap_ms": 1500
+   }
+  ],
+  "speaker_audio_ref": null,
+  "partner_line": "Do you want tea?",
+  "gesture_tokens": [],
+  "lip_ref": null,
+  "profile_terms": [],
+  "phrasebook": [],
+  "target_sentence": "I would like tea with sugar.",
+  "allowed_additions": [],
+  "intent_label": "request_drink",
+  "intent_keywords": [
+   "tea",
+   "sugar"
+  ],
+  "expected_clarification": false
+ },
+ {
+  "id": "ctx-03",
+  "split": "tune",
+  "language": "en",
+  "category": "context_qa",
+  "synthetic": true,
+  "fragments": [
+   {
+    "source": "speech",
+    "text": "pain",
+    "gap_ms": 1500
+   },
+   {
+    "source": "speech",
+    "text": "back",
+    "gap_ms": 1500
+   }
+  ],
+  "speaker_audio_ref": null,
+  "partner_line": "Where does it hurt?",
+  "gesture_tokens": [],
+  "lip_ref": null,
+  "profile_terms": [],
+  "phrasebook": [],
+  "target_sentence": "I have pain in my back.",
+  "allowed_additions": [],
+  "intent_label": "report_pain",
+  "intent_keywords": [
+   "pain",
+   "back"
+  ],
+  "expected_clarification": false
+ },
+ {
+  "id": "ctx-04",
+  "split": "test",
+  "language": "en",
+  "category": "context_qa",
+  "synthetic": true,
+  "fragments": [
+   {
+    "source": "speech",
+    "text": "blanket",
+    "gap_ms": 1500
+   }
+  ],
+  "speaker_audio_ref": null,
+  "partner_line": "Are you cold?",
+  "gesture_tokens": [],
+  "lip_ref": null,
+  "profile_terms": [],
+  "phrasebook": [],
+  "target_sentence": "I would like a blanket.",
+  "allowed_additions": [],
+  "intent_label": "request_item",
+  "intent_keywords": [
+   "blanket"
+  ],
+  "expected_clarification": false
+ },
+ {
+  "id": "pers-01",
+  "split": "test",
+  "language": "en",
+  "category": "context_qa",
+  "synthetic": true,
+  "fragments": [
+   {
+    "source": "speech",
+    "text": "mee",
+    "gap_ms": 1500
+   },
+   {
+    "source": "speech",
+    "text": "meera",
+    "gap_ms": 1500
+   },
+   {
+    "source": "speech",
+    "text": "call",
+    "gap_ms": 1500
+   }
+  ],
+  "speaker_audio_ref": null,
+  "partner_line": null,
+  "gesture_tokens": [],
+  "lip_ref": null,
+  "profile_terms": [
+   "Meera"
+  ],
+  "phrasebook": [
+   "Please call Meera."
+  ],
+  "target_sentence": "Please call Meera.",
+  "allowed_additions": [],
+  "intent_label": "call_family",
+  "intent_keywords": [
+   "call",
+   "meera"
+  ],
+  "expected_clarification": false
+ },
+ {
+  "id": "pers-02",
+  "split": "tune",
+  "language": "en",
+  "category": "context_qa",
+  "synthetic": true,
+  "fragments": [
+   {
+    "source": "speech",
+    "text": "window",
+    "gap_ms": 1500
+   }
+  ],
+  "speaker_audio_ref": null,
+  "partner_line": null,
+  "gesture_tokens": [],
+  "lip_ref": null,
+  "profile_terms": [],
+  "phrasebook": [
+   "Please open the window."
+  ],
+  "target_sentence": "Please open the window.",
+  "allowed_additions": [],
+  "intent_label": "request_action",
+  "intent_keywords": [
+   "window"
+  ],
+  "expected_clarification": false
+ },
+ {
+  "id": "gest-01",
+  "split": "test",
+  "language": "en",
+  "category": "gesture_ambiguous",
+  "synthetic": true,
+  "fragments": [
+   {
+    "source": "speech",
+    "text": "wa",
+    "gap_ms": 1500
+   }
+  ],
+  "speaker_audio_ref": null,
+  "partner_line": "Do you want some water?",
+  "gesture_tokens": [
+   {
+    "word": "yes",
+    "token": "Thumb_Up|Right",
+    "score": 0.9
+   }
+  ],
+  "lip_ref": null,
+  "profile_terms": [],
+  "phrasebook": [],
+  "target_sentence": "Yes, I would like water.",
+  "allowed_additions": [],
+  "intent_label": "request_drink",
+  "intent_keywords": [
+   "yes"
+  ],
+  "expected_clarification": false
+ },
+ {
+  "id": "gest-02",
+  "split": "test",
+  "language": "en",
+  "category": "gesture_ambiguous",
+  "synthetic": true,
+  "fragments": [
+   {
+    "source": "speech",
+    "text": "hmm",
+    "gap_ms": 1500
+   },
+   {
+    "source": "speech",
+    "text": "the",
+    "gap_ms": 1500
+   }
+  ],
+  "speaker_audio_ref": null,
+  "partner_line": "Shall I turn on the TV?",
+  "gesture_tokens": [
+   {
+    "word": "no",
+    "token": "Thumb_Down|Left",
+    "score": 0.9
+   }
+  ],
+  "lip_ref": null,
+  "profile_terms": [],
+  "phrasebook": [],
+  "target_sentence": "No.",
+  "allowed_additions": [],
+  "intent_label": "decline",
+  "intent_keywords": [
+   "no"
+  ],
+  "expected_clarification": false
+ },
+ {
+  "id": "gest-03",
+  "split": "tune",
+  "language": "en",
+  "category": "gesture_ambiguous",
+  "synthetic": true,
+  "fragments": [
+   {
+    "source": "speech",
+    "text": "doc",
+    "gap_ms": 1500
+   }
+  ],
+  "speaker_audio_ref": null,
+  "partner_line": null,
+  "gesture_tokens": [
+   {
+    "word": "wait",
+    "token": "Open_Palm|Right",
+    "score": 0.9
+   }
+  ],
+  "lip_ref": null,
+  "profile_terms": [
+   "doctor"
+  ],
+  "phrasebook": [],
+  "target_sentence": "Wait, I need the doctor.",
+  "allowed_additions": [],
+  "intent_label": "request_help",
+  "intent_keywords": [
+   "doctor"
+  ],
+  "expected_clarification": false
+ },
+ {
+  "id": "lip-01",
+  "split": "test",
+  "language": "en",
+  "category": "lip_only",
+  "synthetic": true,
+  "fragments": [],
+  "speaker_audio_ref": null,
+  "partner_line": null,
+  "gesture_tokens": [],
+  "lip_ref": "water",
+  "profile_terms": [],
+  "phrasebook": [],
+  "target_sentence": "I want water.",
+  "allowed_additions": [],
+  "intent_label": "request_drink",
+  "intent_keywords": [
+   "water"
+  ],
+  "expected_clarification": true
+ },
+ {
+  "id": "hi-01",
+  "split": "test",
+  "language": "hi",
+  "category": "hindi",
+  "synthetic": true,
+  "fragments": [
+   {
+    "source": "speech",
+    "text": "पा",
+    "gap_ms": 1500
+   },
+   {
+    "source": "speech",
+    "text": "पानी",
+    "gap_ms": 1500
+   }
+  ],
+  "speaker_audio_ref": null,
+  "partner_line": "पानी या चाय?",
+  "gesture_tokens": [],
+  "lip_ref": null,
+  "profile_terms": [],
+  "phrasebook": [],
+  "target_sentence": "मुझे पानी चाहिए।",
+  "allowed_additions": [],
+  "intent_label": "request_drink",
+  "intent_keywords": [
+   "पानी"
+  ],
+  "expected_clarification": false
+ },
+ {
+  "id": "hi-02",
+  "split": "tune",
+  "language": "hi",
+  "category": "hindi",
+  "synthetic": true,
+  "fragments": [
+   {
+    "source": "speech",
+    "text": "दर्द",
+    "gap_ms": 1500
+   },
+   {
+    "source": "speech",
+    "text": "सिर",
+    "gap_ms": 1500
+   }
+  ],
+  "speaker_audio_ref": null,
+  "partner_line": "कहाँ दर्द है?",
+  "gesture_tokens": [],
+  "lip_ref": null,
+  "profile_terms": [],
+  "phrasebook": [],
+  "target_sentence": "मेरे सिर में दर्द है।",
+  "allowed_additions": [],
+  "intent_label": "report_pain",
+  "intent_keywords": [
+   "दर्द",
+   "सिर"
+  ],
+  "expected_clarification": false
+ },
+ {
+  "id": "mix-01",
+  "split": "test",
+  "language": "mixed",
+  "category": "code_mixed",
+  "synthetic": true,
+  "fragments": [
+   {
+    "source": "speech",
+    "text": "paani",
+    "gap_ms": 1500
+   },
+   {
+    "source": "speech",
+    "text": "thanda",
+    "gap_ms": 1500
+   }
+  ],
+  "speaker_audio_ref": null,
+  "partner_line": "Paani ya chai?",
+  "gesture_tokens": [],
+  "lip_ref": null,
+  "profile_terms": [],
+  "phrasebook": [],
+  "target_sentence": "Mujhe thanda paani chahiye.",
+  "allowed_additions": [],
+  "intent_label": "request_drink",
+  "intent_keywords": [
+   "paani",
+   "thanda"
+  ],
+  "expected_clarification": false
+ },
+ {
+  "id": "mix-02",
+  "split": "test",
+  "language": "mixed",
+  "category": "code_mixed",
+  "synthetic": true,
+  "fragments": [
+   {
+    "source": "speech",
+    "text": "phone",
+    "gap_ms": 1500
+   },
+   {
+    "source": "speech",
+    "text": "charge",
+    "gap_ms": 1500
+   }
+  ],
+  "speaker_audio_ref": null,
+  "partner_line": null,
+  "gesture_tokens": [],
+  "lip_ref": null,
+  "profile_terms": [],
+  "phrasebook": [],
+  "target_sentence": "Please mera phone charge kar do.",
+  "allowed_additions": [
+   "kar",
+   "do"
+  ],
+  "intent_label": "request_action",
+  "intent_keywords": [
+   "phone",
+   "charge"
+  ],
+  "expected_clarification": false
+ },
+ {
+  "id": "neg-01",
+  "split": "test",
+  "language": "en",
+  "category": "negative_conflict",
+  "synthetic": true,
+  "fragments": [
+   {
+    "source": "speech",
+    "text": "yes",
+    "gap_ms": 1500
+   }
+  ],
+  "speaker_audio_ref": null,
+  "partner_line": "Do you want to sleep?",
+  "gesture_tokens": [
+   {
+    "word": "no",
+    "token": "Thumb_Down|Right",
+    "score": 0.9
+   }
+  ],
+  "lip_ref": null,
+  "profile_terms": [],
+  "phrasebook": [],
+  "target_sentence": "",
+  "allowed_additions": [],
+  "intent_label": "unclear",
+  "intent_keywords": [],
+  "expected_clarification": true
+ },
+ {
+  "id": "neg-02",
+  "split": "test",
+  "language": "en",
+  "category": "negative_no_cue",
+  "synthetic": true,
+  "fragments": [
+   {
+    "source": "speech",
+    "text": "um",
+    "gap_ms": 1500
+   },
+   {
+    "source": "speech",
+    "text": "uh",
+    "gap_ms": 1500
+   }
+  ],
+  "speaker_audio_ref": null,
+  "partner_line": null,
+  "gesture_tokens": [],
+  "lip_ref": null,
+  "profile_terms": [],
+  "phrasebook": [],
+  "target_sentence": "",
+  "allowed_additions": [],
+  "intent_label": "unclear",
+  "intent_keywords": [],
+  "expected_clarification": true
+ },
+ {
+  "id": "neg-03",
+  "split": "tune",
+  "language": "en",
+  "category": "negative_noise",
+  "synthetic": true,
+  "fragments": [
+   {
+    "source": "speech",
+    "text": "ghh",
+    "gap_ms": 1500
+   },
+   {
+    "source": "speech",
+    "text": "zz",
+    "gap_ms": 1500
+   }
+  ],
+  "speaker_audio_ref": null,
+  "partner_line": null,
+  "gesture_tokens": [],
+  "lip_ref": null,
+  "profile_terms": [],
+  "phrasebook": [],
+  "target_sentence": "",
+  "allowed_additions": [],
+  "intent_label": "unclear",
+  "intent_keywords": [],
+  "expected_clarification": true
+ },
+ {
+  "id": "sim-01",
+  "split": "test",
+  "language": "en",
+  "category": "simulated_atypical",
+  "synthetic": true,
+  "fragments": [
+   {
+    "source": "speech",
+    "text": "wo",
+    "gap_ms": 3916
+   },
+   {
+    "source": "speech",
+    "text": "would",
+    "gap_ms": 2641
+   },
+   {
+    "source": "speech",
+    "text": "juice",
+    "gap_ms": 2396
+   }
+  ],
+  "speaker_audio_ref": null,
+  "partner_line": "What would you like to drink?",
+  "gesture_tokens": [],
+  "lip_ref": null,
+  "profile_terms": [],
+  "phrasebook": [],
+  "target_sentence": "I would like some juice please.",
+  "allowed_additions": [],
+  "intent_label": "synthetic_juice",
+  "intent_keywords": [
+   "juice"
+  ],
+  "expected_clarification": false
+ },
+ {
+  "id": "sim-02",
+  "split": "test",
+  "language": "en",
+  "category": "simulated_atypical",
+  "synthetic": true,
+  "fragments": [
+   {
+    "source": "speech",
+    "text": "i",
+    "gap_ms": 1031
+   },
+   {
+    "source": "speech",
+    "text": "i",
+    "gap_ms": 2278
+   },
+   {
+    "source": "speech",
+    "text": "am",
+    "gap_ms": 3543
+   },
+   {
+    "source": "speech",
+    "text": "f",
+    "gap_ms": 3180
+   },
+   {
+    "source": "speech",
+    "text": "feeling",
+    "gap_ms": 3590
+   },
+   {
+    "source": "speech",
+    "text": "feeling",
+    "gap_ms": 2564
+   },
+   {
+    "source": "speech",
+    "text": "very",
+    "gap_ms": 4323
+   },
+   {
+    "source": "speech",
+    "text": "tired",
+    "gap_ms": 2622
+   }
+  ],
+  "speaker_audio_ref": null,
+  "partner_line": "How are you feeling?",
+  "gesture_tokens": [],
+  "lip_ref": null,
+  "profile_terms": [],
+  "phrasebook": [],
+  "target_sentence": "I am feeling very tired.",
+  "allowed_additions": [],
+  "intent_label": "synthetic_tired",
+  "intent_keywords": [
+   "tired"
+  ],
+  "expected_clarification": false
+ },
+ {
+  "id": "sim-03",
+  "split": "tune",
+  "language": "en",
+  "category": "simulated_atypical",
+  "synthetic": true,
+  "fragments": [
+   {
+    "source": "speech",
+    "text": "tu",
+    "gap_ms": 3362
+   },
+   {
+    "source": "speech",
+    "text": "turn",
+    "gap_ms": 3179
+   },
+   {
+    "source": "speech",
+    "text": "turn",
+    "gap_ms": 853
+   },
+   {
+    "source": "speech",
+    "text": "off",
+    "gap_ms": 2721
+   },
+   {
+    "source": "speech",
+    "text": "li",
+    "gap_ms": 2426
+   },
+   {
+    "source": "speech",
+    "text": "light",
+    "gap_ms": 3417
+   }
+  ],
+  "speaker_audio_ref": null,
+  "partner_line": null,
+  "gesture_tokens": [],
+  "lip_ref": null,
+  "profile_terms": [],
+  "phrasebook": [],
+  "target_sentence": "Please turn off the light.",
+  "allowed_additions": [],
+  "intent_label": "synthetic_light",
+  "intent_keywords": [
+   "light",
+   "off"
+  ],
+  "expected_clarification": false
+ },
+ {
+  "id": "sim-04",
+  "split": "test",
+  "language": "en",
+  "category": "simulated_atypical",
+  "synthetic": true,
+  "fragments": [
+   {
+    "source": "speech",
+    "text": "uh",
+    "gap_ms": 2761
+   },
+   {
+    "source": "speech",
+    "text": "w",
+    "gap_ms": 881
+   },
+   {
+    "source": "speech",
+    "text": "want",
+    "gap_ms": 2444
+   },
+   {
+    "source": "speech",
+    "text": "go",
+    "gap_ms": 1041
+   },
+   {
+    "source": "speech",
+    "text": "go",
+    "gap_ms": 2998
+   },
+   {
+    "source": "speech",
+    "text": "outside",
+    "gap_ms": 4186
+   },
+   {
+    "source": "speech",
+    "text": "outside",
+    "gap_ms": 1678
+   }
+  ],
+  "speaker_audio_ref": null,
+  "partner_line": "Where do you want to go?",
+  "gesture_tokens": [],
+  "lip_ref": null,
+  "profile_terms": [],
+  "phrasebook": [],
+  "target_sentence": "I want to go outside.",
+  "allowed_additions": [],
+  "intent_label": "synthetic_outside",
+  "intent_keywords": [
+   "outside"
+  ],
+  "expected_clarification": false
+ }
+]
