@@ -249,6 +249,13 @@ class ScribeService:
     def active(self) -> bool:
         return self._mic is not None
 
+    @property
+    def busy(self) -> bool:
+        """True while an utterance is open or a transcription is still pending."""
+        with self._lock:
+            open_utt = self._seg is not None and self._seg.in_speech
+            return open_utt or any(not f.done() for f in self._pending)
+
     def _client(self):
         if self._stt is None:
             if not self._s.elevenlabs_api_key:

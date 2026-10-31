@@ -59,6 +59,12 @@ def turn_confirm(body: TurnConfirm, request: Request) -> dict[str, Any]:
     return _tm(request).confirm(body.turn_id, body.choice_index, body.edited_text)
 
 
+@router.post("/turn/replay")
+def turn_replay(request: Request) -> dict[str, Any]:
+    """Say the last confirmed message again; no body, so the text cannot be swapped (R2)."""
+    return _tm(request).replay()
+
+
 @router.post("/turn/reject")
 def turn_reject(request: Request, body: TurnRef | None = None) -> dict[str, Any]:
     return _tm(request).reject(body.turn_id if body else None).view()

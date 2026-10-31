@@ -2,7 +2,7 @@
 
 import { AnimatePresence, MotionConfig, motion } from 'motion/react'
 import {
-  Activity, Bot, Camera, Ellipsis, FileText, HeartHandshake, History, KeyRound, Moon,
+  Activity, Camera, Ellipsis, FileText, HeartHandshake, History, KeyRound, Moon,
   ShieldCheck, Sun, UserRound, Waves, WifiOff, X,
 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
@@ -11,7 +11,6 @@ import { Toaster } from 'sonner'
 import { BackendProvider, useBackend } from '@/lib/backend'
 import { cn } from '@/lib/utils'
 
-import { AvatarScreen } from './screens/avatar'
 import { CameraScreen } from './screens/camera'
 import { InsightsScreen } from './screens/insights'
 import { MessageScreen } from './screens/message'
@@ -20,14 +19,13 @@ import { SetupScreen } from './screens/setup'
 import { WordsScreen } from './screens/words'
 import { Badge, Button, Dot, Segmented } from './ui/kit'
 
-type Screen = 'message' | 'partner' | 'camera' | 'words' | 'avatar' | 'setup' | 'insights'
+type Screen = 'message' | 'partner' | 'camera' | 'words' | 'setup' | 'insights'
 
 const NAV: { id: Screen; label: string; short: string; icon: typeof Activity; primary?: boolean }[] = [
   { id: 'message', label: 'My message', short: 'Message', icon: HeartHandshake, primary: true },
   { id: 'partner', label: 'Partner', short: 'Partner', icon: UserRound, primary: true },
   { id: 'camera', label: 'Camera & gestures', short: 'Camera', icon: Camera, primary: true },
   { id: 'words', label: 'My words', short: 'Words', icon: FileText, primary: true },
-  { id: 'avatar', label: 'Avatar & voice', short: 'Avatar', icon: Bot },
   { id: 'setup', label: 'Setup & permissions', short: 'Setup', icon: ShieldCheck },
   { id: 'insights', label: 'Insights', short: 'Insights', icon: Activity },
 ]
@@ -128,7 +126,6 @@ function Shell() {
               {screen === 'partner' && <PartnerScreen />}
               {screen === 'camera' && <CameraScreen />}
               {screen === 'words' && <WordsScreen />}
-              {screen === 'avatar' && <AvatarScreen />}
               {screen === 'setup' && <SetupScreen theme={theme} setTheme={setTheme} />}
               {screen === 'insights' && <InsightsScreen />}
             </motion.div>

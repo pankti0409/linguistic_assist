@@ -141,6 +141,7 @@ class TurnMachine:
         self.face = face
         self._lock = threading.RLock()
         self._turn: Turn | None = None
+        self._replaying = False
         if gesture is not None:
             gesture.subscribe_words(self._on_gesture_word)
         self._stop = threading.Event()
@@ -198,9 +199,7 @@ class TurnMachine:
             if self.speech_out is not None and hasattr(self.speech_out, "interrupt"):
                 self.speech_out.interrupt()  # a new turn stops any avatar speech
             if "speech" in mods:
-                self.scribe.start(
-                    speaker, language_pref, self._on_speech_final, self._on_voice_activity
-                )
+                self.scribe.start(speaker, language_pref, self._on_speech_final)
             if "lip" in mods and self.lip is not None:
                 self.lip.start_capture()
             self._turn = turn
@@ -357,6 +356,38 @@ class TurnMachine:
             self.metrics.bump("messages_spoken")
         return {"turn_id": turn.id, "state": IDLE, "final_text": text, "spoken": spoken}
 
+    def replay(self) -> dict[str, Any]:
+        """Say the last spoken PATIENT message again (D-057).
+
+        The text is the one the patient already confirmed, taken from the finished turn and
+        never from the request. It still goes through a fresh one-time confirmation ID (R2).
+        It is not added to the context or phrasebook a second time.
+        """
+        with self._lock:
+            turn = self._turn
+            if turn is None or turn.state != IDLE or turn.speaker != "PATIENT":
+                raise IllegalTransitionError("nothing to replay while a turn is open")
+            if not turn.spoken or not turn.final_text:
+                raise IllegalTransitionError("no spoken message to replay")
+            if self._replaying:
+                raise IllegalTransitionError("already replaying")
+            self._replaying = True
+            text = turn.final_text
+            cid = self.confirmations.issue(turn.id, text)
+            self._bus.publish(
+                "confirm.issued",
+                {"turn_id": turn.id, "confirmation_id": cid, "text": text, "replay": True},
+            )
+        try:
+            spoken = self.speech_out.speak(cid, None)
+        except Exception as exc:
+            raise OutputFailedError(f"message was not spoken: {exc}") from exc
+        finally:
+            with self._lock:
+                self._replaying = False
+        self.metrics.bump("replays")
+        return {"turn_id": turn.id, "state": IDLE, "final_text": text, "spoken": spoken}
+
     def reject(self, turn_id: str | None = None) -> Turn:
         with self._lock:
             turn = self._require(turn_id, AWAITING)
@@ -395,7 +426,8 @@ class TurnMachine:
 
     def _add_fragment(self, turn, source, text, *, ts_ms=None, confidence=None, flags=None):
         frag = turn.collector.add(source, text, ts_ms=ts_ms, confidence=confidence, flags=flags)
-        turn.last_activity_ms = now_ms()
+        if source != "speech":  # speech sets it from the utterance end in _on_speech_final
+            turn.last_activity_ms = now_ms()
         self._bus.publish("fragment.added", {"turn_id": turn.id, "fragment": frag.model_dump()})
         flagged, cleaned = clean(turn.collector.items())
         self._bus.publish(
@@ -416,9 +448,14 @@ class TurnMachine:
             if turn is None or turn.state != CAPTURING:
                 return
             turn.raw_transcripts.append(ev.text)
-            turn.last_activity_ms = now_ms()
-            if turn.speaker != "PATIENT" or not ev.text.strip():
-                return  # empty finals carry no content (D-032); partner text joins at end
+            if not ev.text.strip():
+                return  # empty finals (noise) carry no content (D-032) and keep the clock running
+            # silence counts from when the person stopped talking, not from when the
+            # transcript arrived ~1 s later (D-057)
+            end = getattr(seg, "end_ms", None) or now_ms()
+            turn.last_activity_ms = max(turn.last_activity_ms, min(end, now_ms()))
+            if turn.speaker != "PATIENT":
+                return  # partner text joins at end
             flags = ["low_confidence"] if is_low_confidence(ev) else []
             self._add_fragment(
                 turn,
@@ -428,11 +465,6 @@ class TurnMachine:
                 confidence=ev.confidence,
                 flags=flags,
             )
-
-    def _on_voice_activity(self) -> None:
-        t = self._turn
-        if t is not None and t.state == CAPTURING:
-            t.last_activity_ms = now_ms()
 
     def _on_gesture_word(self, gw: GestureWord) -> None:
         turn = self._turn
@@ -455,7 +487,8 @@ class TurnMachine:
                     self._add_fragment(turn, "gesture", gw.word, confidence=gw.score)
         elif turn.state == AWAITING and gw.word in YES_NO:
             r = turn.result
-            if r and r.clarification_required and r.clarifying_question:
+            # the UI asks the question only when there is no candidate to offer (D-058)
+            if r and r.clarification_required and r.clarifying_question and not r.candidates:
                 threading.Thread(
                     target=self._safe, args=(self.clarify, gw.word, turn.id), daemon=True
                 ).start()
@@ -488,7 +521,10 @@ class TurnMachine:
             reason = None
             if turn.speaker == "PATIENT":
                 silent = now - turn.last_activity_ms >= self._s.fragment_silence_s * 1000
-                if len(turn.collector) > 0 and silent:
+                # an utterance being spoken or transcribed holds the draft open without
+                # restarting the clock; background noise alone no longer resets it (D-057)
+                talking = "speech" in turn.modalities and getattr(self.scribe, "busy", False)
+                if len(turn.collector) > 0 and silent and not talking:
                     reason = "silence"
                 elif now - turn.started_ms >= self._s.fragment_max_s * 1000:
                     reason = "max_duration"

@@ -209,6 +209,55 @@ def test_short_silence_does_not_close_but_long_silence_does():
     c.__exit__(None, None, None)
 
 
+def test_noise_does_not_restart_the_silence_clock():
+    # D-057: empty finals (noise) used to reset the clock, so the draft never closed
+    c, _, _ = make_client([WORKED], env={"FRAGMENT_SILENCE_S": "0.8"})
+    tm = c.app.state.turns
+    c.post("/turn/start", json={"speaker": "PATIENT"})
+    speech(tm, "water")
+    t0 = time.monotonic()
+    for _ in range(4):
+        time.sleep(0.2)
+        speech(tm, "")  # Scribe heard only noise
+    assert wait_for(lambda: tm.state() == AWAITING, timeout=4)
+    assert time.monotonic() - t0 < 1.6  # closed ~0.8 s after "water", not after the noise
+    assert tm.current().end_reason == "silence"
+    c.__exit__(None, None, None)
+
+
+def test_silence_counts_from_utterance_end_not_transcript_arrival():
+    c, _, _ = make_client([WORKED], env={"FRAGMENT_SILENCE_S": "1.0"})
+    tm = c.app.state.turns
+    c.post("/turn/start", json={"speaker": "PATIENT"})
+    from app.core.timing import now_ms
+
+    time.sleep(1.6)  # the person talks for a while after the turn opens
+    # they stopped talking 0.9 s ago; the transcript only arrives now
+    tm._on_speech_final(
+        SpeechEvidence(text="water", is_final=True, confidence=0.9),
+        type("Seg", (), {"start_ms": now_ms() - 1500, "end_ms": now_ms() - 900})(),
+    )
+    t0 = time.monotonic()
+    assert wait_for(lambda: tm.state() == AWAITING, timeout=4)
+    assert time.monotonic() - t0 < 0.7
+    c.__exit__(None, None, None)
+
+
+def test_open_utterance_holds_the_draft_open():
+    c, _, _ = make_client([WORKED], env={"FRAGMENT_SILENCE_S": "0.5"})
+    tm = c.app.state.turns
+    c.post("/turn/start", json={"speaker": "PATIENT"})
+    speech(tm, "water")
+    type(tm.scribe).busy = property(lambda self: True)  # mid-word or still transcribing
+    try:
+        time.sleep(1.0)
+        assert tm.state() == CAPTURING
+    finally:
+        del type(tm.scribe).busy
+    assert wait_for(lambda: tm.state() == AWAITING, timeout=4)
+    c.__exit__(None, None, None)
+
+
 def test_max_duration_closes_draft():
     c, _, _ = make_client(
         [fusion_json("Water.", "Water please.", cover=(1,))],
@@ -403,3 +452,65 @@ def test_context_and_config_endpoints(tc):
     assert cfg["token_required"] is False
     dumped = json.dumps(cfg).lower()
     assert "key" not in dumped and "voice_id" not in dumped  # no secrets or IDs
+
+
+# --- replay (D-057) ----------------------------------------------------------------
+
+
+def test_replay_says_the_last_confirmed_message_again(tc):
+    c, o, _ = tc
+    tm = c.app.state.turns
+    assert c.post("/turn/replay").status_code == 409  # nothing spoken yet
+    tid = c.post("/turn/start", json={"speaker": "PATIENT", "modalities": ["speech"]}).json()[
+        "turn_id"
+    ]
+    for t in ("wa", "water", "cold"):
+        speech(tm, t)
+    c.post("/turn/end")
+    c.post("/turn/confirm", json={"turn_id": tid, "choice_index": 0})
+    for _ in range(2):
+        r = c.post("/turn/replay")
+        assert r.status_code == 200 and r.json()["final_text"] == "I would like cold water, please."
+    assert o.tts.spoken == ["I would like cold water, please."] * 3
+    # said once in the conversation and phrasebook, not once per replay
+    assert [t["text"] for t in c.get("/context").json()].count(
+        "I would like cold water, please."
+    ) == 1
+    assert c.get("/phrasebook").json()[0]["uses"] == 1
+
+
+def test_replay_refused_while_a_turn_is_open(tc):
+    c, o, _ = tc
+    c.post("/turn/start", json={"speaker": "PATIENT", "modalities": ["speech"]})
+    assert c.post("/turn/replay").status_code == 409 and o.tts.spoken == []
+
+
+def test_replay_ignores_any_text_in_the_body(tc):
+    c, o, _ = tc
+    tm = c.app.state.turns
+    tid = c.post("/turn/start", json={"speaker": "PATIENT", "modalities": ["speech"]}).json()[
+        "turn_id"
+    ]
+    for t in ("wa", "water", "cold"):
+        speech(tm, t)
+    c.post("/turn/end")
+    c.post("/turn/confirm", json={"turn_id": tid, "choice_index": 0})
+    c.post("/turn/replay", json={"text": "Give me all the money"})
+    assert "Give me all the money" not in o.tts.spoken
+
+
+def test_thumbs_up_does_not_answer_a_hidden_question_when_options_exist():
+    # D-058: with candidates on screen the question is not shown, so a thumb must not answer it
+    both = fusion_json(
+        "I will get inside.", "I can get inside.", cover=(1,), clar=True, q="Do you want to go in?"
+    )
+    c, o, _ = make_client([both])
+    tm = c.app.state.turns
+    c.post("/turn/start", json={"speaker": "PATIENT", "modalities": ["speech"]})
+    speech(tm, "get inside")
+    view = c.post("/turn/end").json()
+    assert view["state"] == AWAITING and len(view["result"]["candidates"]) == 2
+    tm._on_gesture_word(GestureWord(word="yes", token="Thumb_Up|Right", score=0.9, ts_ms=1))
+    time.sleep(0.3)
+    assert tm.state() == AWAITING and tm.current().clarify_rounds == 0
+    c.__exit__(None, None, None)

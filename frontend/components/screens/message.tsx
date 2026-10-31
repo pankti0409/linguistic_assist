@@ -5,26 +5,44 @@ import {
   ArrowRight, Check, CircleAlert, Ear, Hand, Mic, MicOff, Pencil, RotateCcw, ScanFace, Square,
   ThumbsDown, ThumbsUp, Volume2, Waves, X,
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { api } from '@/lib/api'
 import { useBackend } from '@/lib/backend'
 import type { Candidate, Fragment, Modality } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
+import { AvatarPanel } from '../avatar-panel'
 import { CameraView, prettyToken } from '../camera-view'
 import { Badge, Button, Panel, Segmented } from '../ui/kit'
 
 const EASE = [0.16, 1, 0.3, 1] as const
+// Auto-say: the best sentence is said after this countdown unless cancelled (D-056). The mic
+// is not reopened afterwards; each message starts with "Start my message" (D-057).
+const AUTO_SAY_S = 3
+const AUTO_SAY_KEY = 'ps16.autoSay'
+
+function useAutoSay(): [boolean, (on: boolean) => void] {
+  const [on, setOn] = useState(true)
+  useEffect(() => {
+    try { const v = localStorage.getItem(AUTO_SAY_KEY); if (v !== null) setOn(v === '1') } catch { /* storage blocked */ }
+  }, [])
+  const set = (v: boolean) => {
+    setOn(v)
+    try { localStorage.setItem(AUTO_SAY_KEY, v ? '1' : '0') } catch { /* storage blocked */ }
+  }
+  return [on, set]
+}
 
 export function MessageScreen({ go }: { go: (s: string) => void }) {
   const b = useBackend()
   const { turn } = b
   const partnerTurn = turn.speaker === 'PARTNER' && turn.state === 'CAPTURING'
   const lastPartner = useMemo(() => [...b.context].reverse().find((t) => t.speaker === 'PARTNER'), [b.context])
+  const [autoSay, setAutoSay] = useAutoSay()
 
   return (
-    <div className="mx-auto grid grid-cols-1 max-w-[1320px] gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+    <div className="mx-auto grid grid-cols-1 max-w-[1400px] gap-6 xl:grid-cols-[minmax(0,1fr)_460px]">
       <div className="grid grid-cols-1 min-w-0 content-start gap-5">
         <ContextBar line={lastPartner?.text} onPartner={() => go('partner')} />
         {partnerTurn ? (
@@ -36,13 +54,14 @@ export function MessageScreen({ go }: { go: (s: string) => void }) {
         ) : (
           <>
             <SpokenBanner />
-            <Composer />
+            <Composer autoSay={autoSay} setAutoSay={setAutoSay} />
             <Draft />
-            <Decision />
+            <Decision autoSay={autoSay} />
           </>
         )}
       </div>
-      <aside className="grid grid-cols-1 content-start gap-5">
+      <aside className="grid grid-cols-1 content-start gap-5 xl:sticky xl:top-4 xl:self-start">
+        <AvatarPanel />
         <Panel className="p-4">
           <div className="mb-3 flex items-center justify-between gap-3">
             <h2 className="font-bold">You, on camera</h2>
@@ -77,7 +96,7 @@ const MODES: { value: Modality; label: string; icon: typeof Mic; needs: 'microph
   { value: 'lip', label: 'Lip hints', icon: ScanFace, needs: 'camera' },
 ]
 
-function Composer() {
+function Composer({ autoSay, setAutoSay }: { autoSay: boolean; setAutoSay: (on: boolean) => void }) {
   const b = useBackend()
   const { turn, config, lastActivity, draft, speech } = b
   const state = turn.state
@@ -136,7 +155,10 @@ function Composer() {
           ) : (
             <>
               <p className="text-2xl font-bold">Say it in pieces</p>
-              <p className="mt-1 max-w-prose text-muted">Single words, broken syllables, gestures. PS-16 offers full sentences, and nothing is spoken until you choose one.</p>
+              <p className="mt-1 max-w-prose text-muted">
+                Single words, broken syllables, gestures. PS-16 turns them into a full sentence
+                {autoSay ? `, and the avatar says the best one after ${AUTO_SAY_S} seconds unless you cancel.` : '. Nothing is spoken until you choose one.'}
+              </p>
               <div className="mt-5 flex flex-wrap items-center gap-3">
                 <div className="flex flex-wrap gap-2" role="group" aria-label="Inputs for this message">
                   {MODES.map(({ value, label, icon: Icon }) => {
@@ -172,6 +194,19 @@ function Composer() {
                     { value: 'mixed', label: 'Mixed' }, { value: 'auto', label: 'Auto' },
                   ]}
                 />
+                <button
+                  type="button"
+                  aria-pressed={autoSay}
+                  onClick={() => setAutoSay(!autoSay)}
+                  title={`Say the best sentence after ${AUTO_SAY_S} s unless you cancel`}
+                  className={cn(
+                    'inline-flex h-10 items-center gap-2 rounded-xl border px-3.5 text-sm font-bold transition-colors',
+                    autoSay ? 'border-lavender-ink/30 bg-lavender text-lavender-ink' : 'border-line bg-panel text-muted hover:text-ink',
+                  )}
+                >
+                  {autoSay ? <Check className="size-4" aria-hidden /> : <Volume2 className="size-4" aria-hidden />}
+                  Auto-say in {AUTO_SAY_S} s
+                </button>
               </div>
               {missing.length > 0 && (
                 <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl bg-butter px-3.5 py-2.5 text-sm text-butter-ink">
@@ -187,7 +222,7 @@ function Composer() {
             </>
           )}
         </div>
-        <div className="flex justify-start lg:justify-end">
+        <div className="flex flex-col items-start gap-2 lg:items-end">
           {capturing ? (
             <Button size="xl" variant="primary" loading={b.busy === 'end'} onClick={b.endTurn} className="w-full min-w-56 sm:w-auto">
               <span className="listen-ring relative grid grid-cols-1 size-7 place-items-center rounded-full"><Square className="size-4 fill-current" aria-hidden /></span>
@@ -204,6 +239,13 @@ function Composer() {
             >
               <Mic className="size-6" aria-hidden /> Start my message
             </Button>
+          )}
+          {/* a disabled button always says why */}
+          {!capturing && b.link === 'offline' && (
+            <span className="flex items-center gap-1.5 text-sm text-butter-ink"><MicOff className="size-4" aria-hidden /> Backend not reachable. Retrying…</span>
+          )}
+          {!capturing && b.link !== 'offline' && missing.length > 0 && (
+            <span className="text-sm text-butter-ink">Allow {Array.from(new Set(missing.map((m) => m.needs))).join(' and ')} first</span>
           )}
         </div>
       </div>
@@ -277,20 +319,32 @@ function Chip({ f }: { f: Fragment }) {
   )
 }
 
-function Decision() {
+function Decision({ autoSay }: { autoSay: boolean }) {
   const b = useBackend()
   const { turn, question } = b
   const [edit, setEdit] = useState<string | null>(null)
   const [review, setReview] = useState<string | null>(null)
-  useEffect(() => { setEdit(null); setReview(null) }, [turn.turn_id])
+  const [cancelled, setCancelled] = useState(false)
+  useEffect(() => { setEdit(null); setReview(null); setCancelled(false) }, [turn.turn_id])
   if (turn.state !== 'AWAITING_CONFIRM' && turn.state !== 'EDITING') return null
   const r = turn.result
   const cands = r?.candidates ?? []
   const rounds = b.config?.max_clarify_rounds ?? 2
+  // lip text is a weak hint (R5): a message made only of lip hints is never auto-said
+  const content = b.draft.fragments.filter((f) => !f.flags.includes('answer_to_question'))
+  const lipOnly = content.length > 0 && content.every((f) => f.source === 'lip')
+  const caught = (turn.fallback?.text || (turn.cleaned_fragments ?? []).join(' ')).trim()
+  const heard = b.draft.fragments.map((f) => f.text).join(' ').trim()
 
   const sayExact = async (text: string) => {
     const res = await b.confirm({ edited_text: text })
     if (res?.needsReconfirm) setReview(res.finalText ?? text)
+  }
+  // "Say" on text already shown on screen: the tap is the confirmation, so the backend's
+  // show-back step (8.7) is answered at once with the same exact text
+  const sayShown = async (text: string) => {
+    const res = await b.confirm({ edited_text: text })
+    if (res?.needsReconfirm) await b.confirm({ edited_text: res.finalText ?? text })
   }
 
   if (review !== null) {
@@ -335,7 +389,9 @@ function Decision() {
 
   return (
     <section className="grid grid-cols-1 gap-4" aria-labelledby="choose-title">
-      {question && r?.clarification_required && (
+      {/* the yes/no question only when there is no sentence to offer; otherwise the options
+          below always look the same (D-058) */}
+      {question && r?.clarification_required && cands.length === 0 && (
         <Panel className="border-butter-ink/25 bg-butter p-5 sm:p-6" aria-live="assertive">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="min-w-0">
@@ -351,12 +407,25 @@ function Decision() {
         </Panel>
       )}
 
+      {cands.length > 0 && autoSay && !cancelled && !lipOnly && turn.state === 'AWAITING_CONFIRM' && (
+        <AutoSay
+          key={`${turn.turn_id}:${cands[0].text}`}
+          c={cands[0]}
+          paused={b.busy === 'confirm'}
+          onSay={() => b.confirm({ choice_index: 0 })}
+          onCancel={() => setCancelled(true)}
+          onEdit={() => { setCancelled(true); setEdit(cands[0].text) }}
+        />
+      )}
+
       {cands.length > 0 && (
         <>
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <h2 id="choose-title" className="text-2xl font-bold">Is this what you mean?</h2>
-              <p className="text-sm text-muted">Nothing is spoken until you choose. Highlighted words were added for grammar.</p>
+              <p className="text-sm text-muted">
+                {autoSay && !cancelled && !lipOnly ? 'Or pick another one below.' : 'Nothing is spoken until you choose.'} Highlighted words were added for grammar.
+              </p>
             </div>
             <Button variant="danger" onClick={b.reject} loading={b.busy === 'reject'}><X className="size-4" aria-hidden /> None of these</Button>
           </div>
@@ -372,23 +441,71 @@ function Decision() {
       {cands.length === 0 && (
         <Panel className="p-6">
           <h2 id="choose-title" className="text-2xl font-bold">
-            {turn.fallback ? 'Here is what I caught' : r?.clarifying_question ? 'Answer the question above' : 'I couldn’t build a sentence'}
+            {!caught ? 'I didn’t catch any words' : r?.clarifying_question && question ? 'Answer the question above, or' : 'Here is what I caught'}
           </h2>
-          {turn.fallback ? (
-            <p className="mt-3 font-serif text-3xl leading-snug">{turn.fallback.text || '…'}</p>
+          {caught ? (
+            <p className="mt-3 font-serif text-3xl leading-snug">{caught}</p>
           ) : (
-            r?.reasoning_summary && <p className="mt-2 text-muted">{r.reasoning_summary}</p>
+            <p className="mt-2 text-muted">{heard ? `I only heard “${heard}”. ` : ''}Type your message, or start again and speak a little louder.</p>
           )}
-          <p className="mt-2 text-sm text-muted">Choose, edit or repeat. Nothing is said until you confirm.</p>
           <div className="mt-5 flex flex-wrap gap-3">
-            <Button size="lg" variant="primary" onClick={() => setEdit(turn.fallback?.text || (turn.cleaned_fragments ?? []).join(' '))}>
-              <Pencil className="size-4" aria-hidden /> Edit and say
+            <Button size="xl" onClick={() => setEdit(caught)}>
+              <Pencil className="size-5" aria-hidden /> Edit
             </Button>
-            <Button size="lg" onClick={b.reject} loading={b.busy === 'reject'}><RotateCcw className="size-4" aria-hidden /> Start again</Button>
+            <Button size="xl" variant="primary" disabled={!caught} loading={b.busy === 'confirm'} onClick={() => sayShown(caught)}>
+              <Volume2 className="size-5" aria-hidden /> Say
+            </Button>
           </div>
+          <button type="button" className="mt-4 text-sm font-bold text-muted underline underline-offset-2 hover:text-ink" onClick={b.reject}>
+            Discard and start again
+          </button>
         </Panel>
       )}
     </section>
+  )
+}
+
+// The best sentence with a visible countdown. Doing nothing confirms it; Cancel or Edit stops it.
+// It still goes through /turn/confirm, so the backend's one-time confirmation ID is required.
+function AutoSay({ c, paused, onSay, onCancel, onEdit }: {
+  c: Candidate; paused: boolean; onSay: () => void; onCancel: () => void; onEdit: () => void
+}) {
+  const [left, setLeft] = useState(AUTO_SAY_S * 1000)
+  const fired = useRef(false)
+  const sayRef = useRef(onSay)
+  sayRef.current = onSay
+
+  useEffect(() => {
+    if (paused) return
+    const startedAt = Date.now()
+    const from = left
+    const id = window.setInterval(() => {
+      const rest = Math.max(0, from - (Date.now() - startedAt))
+      setLeft(rest)
+      if (rest === 0 && !fired.current) { fired.current = true; window.clearInterval(id); sayRef.current() }
+    }, 100)
+    return () => window.clearInterval(id)
+  }, [paused]) // `left` is read once per (re)start so a pause resumes where it stopped
+
+  return (
+    <Panel className="border-sage-ink/30 p-5 sm:p-6" aria-live="assertive">
+      <div className="flex flex-wrap items-center gap-2 text-sm font-bold text-sage-ink">
+        <Volume2 className="size-4" aria-hidden />
+        {fired.current || left === 0 ? 'Saying it now…' : `Your avatar says this in ${Math.ceil(left / 1000)}…`}
+      </div>
+      <p className="mt-3 font-serif text-3xl leading-tight text-ink sm:text-4xl">{c.text}</p>
+      {c.added_words.length > 0 && <p className="mt-2 text-xs text-muted">Added for grammar: {c.added_words.join(', ')}</p>}
+      <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-rail" aria-hidden>
+        <div className="h-full rounded-full bg-sage-ink transition-[width] duration-100 ease-linear" style={{ width: `${(left / (AUTO_SAY_S * 1000)) * 100}%` }} />
+      </div>
+      <div className="mt-5 flex flex-wrap gap-3">
+        <Button size="xl" variant="danger" disabled={fired.current} onClick={onCancel}><X className="size-5" aria-hidden /> Cancel</Button>
+        <Button size="xl" disabled={fired.current} onClick={onEdit}><Pencil className="size-5" aria-hidden /> Edit</Button>
+        <Button size="xl" variant="primary" disabled={fired.current} onClick={() => { fired.current = true; onSay() }}>
+          <Volume2 className="size-5" aria-hidden /> Say now
+        </Button>
+      </div>
+    </Panel>
   )
 }
 
@@ -430,8 +547,9 @@ function CandidateCard({ c, i, unexplained, busy, onSay, onEdit }: {
 }
 
 function SpokenBanner() {
-  const { spoken, fallbackReason, turn, avatarSpeaking } = useBackend()
+  const { spoken, fallbackReason, turn, avatarSpeaking, busy, replay } = useBackend()
   if (!spoken || (turn.state !== 'IDLE' && turn.state !== 'SPEAKING')) return null
+  const talking = spoken.playing || avatarSpeaking || busy === 'replay'
   const tier = spoken.tier === 'avatar_audio' || spoken.tier === 'avatar_text' ? 'Said by your avatar'
     : spoken.tier === 'local' ? 'Spoken on this device, with subtitles' : 'Getting ready to speak…'
   return (
@@ -446,9 +564,16 @@ function SpokenBanner() {
         {fallbackReason && spoken.tier === 'local' && (
           <p className="mt-3 flex items-center gap-1.5 text-sm text-sage-ink"><MicOff className="size-4" aria-hidden /> Avatar not used: {fallbackReason}</p>
         )}
-        {spoken.tier === 'local' && !spoken.playing && (
-          <Button className="mt-4" size="sm" onClick={() => window.dispatchEvent(new Event('ps16:replay'))}>
-            <RotateCcw className="size-4" aria-hidden /> Play again
+        {turn.state === 'IDLE' && spoken.tier && (
+          <Button
+            className="mt-4"
+            size="lg"
+            loading={busy === 'replay'}
+            disabled={talking}
+            // device audio replays locally for free; avatar speech is said again by the avatar
+            onClick={() => (spoken.tier === 'local' ? window.dispatchEvent(new Event('ps16:replay')) : replay())}
+          >
+            <RotateCcw className="size-4" aria-hidden /> Say again
           </Button>
         )}
       </Panel>

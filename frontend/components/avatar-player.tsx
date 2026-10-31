@@ -5,21 +5,30 @@
 // microphone, then plays only the avatar's remote video and audio. Replaces embedding Tavus'
 // full meeting page, which always shows a camera/mic permission prompt.
 
-import Daily, { type DailyCall, type DailyEventObjectTrack } from '@daily-co/daily-js'
+import Daily, {
+  type DailyCall,
+  type DailyEventObjectParticipantLeft,
+  type DailyEventObjectTrack,
+} from '@daily-co/daily-js'
 import { Loader2, Volume2, VolumeX } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
 import { Button } from './ui/kit'
 
-type Phase = 'joining' | 'waiting' | 'live' | 'error'
+type Phase = 'joining' | 'waiting' | 'live' | 'ended' | 'error'
 
-export function AvatarPlayer({ url }: { url: string }) {
+// The backend joins the same room as a silent relay; it is not the avatar.
+const RELAY_NAME = 'ps16-relay'
+
+export function AvatarPlayer({ url, onEnded }: { url: string; onEnded?: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
   const [phase, setPhase] = useState<Phase>('joining')
   const [error, setError] = useState('')
   const [muted, setMuted] = useState(false)
   const [needsTap, setNeedsTap] = useState(false)
+  const onEndedRef = useRef(onEnded)
+  onEndedRef.current = onEnded
 
   useEffect(() => {
     let call: DailyCall | null = null
@@ -41,6 +50,21 @@ export function AvatarPlayer({ url }: { url: string }) {
       if (ev.type === 'video' && videoRef.current) { videoRef.current.srcObject = null; setPhase('waiting') }
       if (ev.type === 'audio' && audioRef.current) audioRef.current.srcObject = null
     }
+    // Without this a closed room keeps showing the avatar's last frame, which looks alive.
+    const ended = () => {
+      if (cancelled) return
+      if (videoRef.current) videoRef.current.srcObject = null
+      if (audioRef.current) audioRef.current.srcObject = null
+      setPhase('ended')
+      onEndedRef.current?.()
+    }
+    const onLeft = (ev?: DailyEventObjectParticipantLeft) => {
+      const gone = ev?.participant.session_id
+      const others = Object.values(call?.participants() ?? {}).filter(
+        (p) => !p.local && p.user_name !== RELAY_NAME && p.session_id !== gone,
+      )
+      if (others.length === 0) ended()
+    }
 
     ;(async () => {
       try {
@@ -51,6 +75,8 @@ export function AvatarPlayer({ url }: { url: string }) {
         })
         call.on('track-started', attach)
         call.on('track-stopped', detach)
+        call.on('participant-left', onLeft)
+        call.on('left-meeting', ended)
         call.on('error', (e) => { setError(e?.errorMsg ?? 'Avatar connection error'); setPhase('error') })
         await call.join({ url, startVideoOff: true, startAudioOff: true, userName: 'PS-16 viewer' })
         if (!cancelled) setPhase((p) => (p === 'live' ? p : 'waiting'))
@@ -78,6 +104,11 @@ export function AvatarPlayer({ url }: { url: string }) {
               <>
                 <p className="font-bold">Avatar could not connect</p>
                 <p className="text-sm text-white/75">{error}. Messages are still spoken on this device.</p>
+              </>
+            ) : phase === 'ended' ? (
+              <>
+                <p className="font-bold">The avatar session has ended</p>
+                <p className="text-sm text-white/75">Start it again to have the avatar speak. Messages are still spoken on this device.</p>
               </>
             ) : (
               <>

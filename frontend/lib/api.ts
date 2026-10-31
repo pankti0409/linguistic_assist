@@ -75,6 +75,8 @@ export const api = {
   end: (turn_id?: string | null) => post<TurnView>('/turn/end', { turn_id: turn_id ?? null }),
   confirm: (turn_id: string, body: { choice_index?: number; edited_text?: string }) =>
     post<ConfirmResult>('/turn/confirm', { turn_id, ...body }),
+  // no body: the backend replays the text the patient already confirmed (R2)
+  replay: () => post<ConfirmResult>('/turn/replay'),
   reject: (turn_id?: string | null) => post<TurnView>('/turn/reject', { turn_id: turn_id ?? null }),
   clarify: (answer: string, turn_id?: string | null) =>
     post<TurnView>('/turn/clarify', { answer, turn_id: turn_id ?? null }),

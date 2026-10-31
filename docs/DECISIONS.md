@@ -429,3 +429,88 @@ measured at 390 / 820 / 1440 px. One real bug (grids sized to content on phones)
 and fixed. With the real backend, the live webcam self-view and face tracking were seen in
 the UI. Not verified in the browser: real ElevenLabs audio playback (the configured voices
 need a paid plan, D-041) and the avatar iframe (no live Tavus, D-044).
+
+## Voices (2026-11-01)
+
+### D-054 Free-tier premade voices replace the library voices
+Raju and Saavi (D-001, D-017) are library voices, which return 402 on the free plan (D-041).
+They are replaced with two ElevenLabs premade voices, which the free plan allows over the API:
+- `VOICE_ID_MALE=JBFqnCBsd6RMkjVDRZzb`: "George - Warm, Captivating Storyteller", `premade`,
+  `labels.gender=male`, British English.
+- `VOICE_ID_FEMALE=hpp4J3VqNfWAUOO0d1Us`: "Bella - Professional, Bright, Warm", `premade`,
+  `labels.gender=female`, American English.
+Verified on the account (tier `free`): `GET /v1/voices/{id}` for both, and
+`POST /v1/text-to-speech/{id}` with `eleven_flash_v2_5` returned HTTP 200 audio for both in
+`mp3_44100_128` (local fallback) and `pcm_16000` (echo). Both are English voices, so Hindi
+output may carry an English accent; Flash v2.5 is multilingual but this was not listened to.
+Neither is a clone of the patient, so output stays `voice_kind:"designed"`.
+
+### D-055 Text echo verified live; avatar screen notices an ended room
+One live probe (conversation `cb412ba9b3ce44e8`, `full` mode, `AVATAR_AUDIO_ECHO=0`): the
+backend joined with daily-python and sent one `conversation.echo` text message, extra
+`synthetic`/`disclosure` keys included. `conversation.replica.started_speaking` arrived
+0.84 s later, speech lasted 3.0 s, and the Tavus transcript shows the replica said exactly
+"Hello. This is a test message." This settles D-043's open question about extra keys and
+one English sentence of D-044's verbatim test; the other 9 sentences (Hindi, mixed) and the
+audio echo tier are still unverified.
+A user report ("the avatar says nothing and doesn't hear me") was traced to: no message had
+been confirmed (TTS never called), the patient's mic is off in the room by design (R4), and
+the session (`c207c490210524b7`) had been ended through our end endpoint after 52 s while
+the page kept showing its last video frame. The player now handles Daily's
+`participant-left` / `left-meeting`, shows "session ended", and the screen re-reads
+`/avatar/session` when the avatar health detail changes. The screen also says the avatar
+does not listen, and links to My message.
+
+### D-056 gpt-oss-20b, one-page hands-free mode, R2 relaxed to "confirm by not cancelling"
+- `LLM_MODEL=openai/gpt-oss-20b` (user decision). The 120b model's free daily quota
+  (200,000 TPD) was used up; 20b has its own quota. On first try 20b returned one candidate
+  (rejected by the 2-3 rule) and a fragment list ("Water, cold."). `fusion_system.md` rule 6
+  now says "always 2 or 3, never 1, complete sentences", and the section 8.6 worked example
+  was added. Re-run on 3 packets: "wa, water, cold" after "Water or tea?" ->
+  "I would like cold water, please." / "Cold water, please." (0.5 s); "I / want / go home"
+  -> "I want to go home." (0.7 s); "okay / ... / beta garmi" -> yes/no clarification. This
+  is prompt-tuning round 1 of 3 (section 9), on hand-made packets, not the eval test split.
+- One page: the avatar panel (shared `AvatarPanel`) now sits beside the message composer,
+  so speaking and watching the avatar happen on the same screen.
+- **R2 change (user decision):** with Hands-free on (default, stored per browser), the best
+  candidate is shown with a 3 s countdown and Cancel / Edit / Say now. If nothing is
+  pressed, the frontend calls `/turn/confirm {choice_index: 0}`. The backend gate is
+  unchanged: a one-time confirmation ID is still issued and required, and only candidates
+  that passed the post-validator can be auto-said. Not auto-said: clarification questions,
+  the LLM-unavailable fallback, and edited text (which still needs review).
+- After a message is spoken, Hands-free opens a new PATIENT turn once the avatar and local
+  audio are silent plus 1.2 s, so the avatar's voice is not captured as a fragment.
+
+### D-057 Silence clock fix, replay, no auto re-listen, one avatar page
+- **Bug:** the `FRAGMENT_SILENCE_S` clock reset on every energy-VAD frame above the noise
+  floor (fan, typing, other voices) and on every Scribe final, empty ones included, and it
+  reset at transcript *arrival* (~1 s after the person stopped). So the draft often never
+  closed and the on-screen countdown jumped back. Now only a real fragment moves the clock:
+  a non-empty speech final (stamped with the utterance's `end_ms`) or a gesture word.
+  While an utterance is open or still being transcribed (`ScribeService.busy`), the draft is
+  held open without moving the clock. The frontend countdown restarts on `fragment.added`
+  only. Tests: noise does not restart, clock counts from utterance end, open utterance holds.
+- **Replay:** `POST /turn/replay` (no body) says the last spoken PATIENT message again. The
+  text comes from the finished turn, a fresh one-time confirmation ID is issued (R2), and it
+  is not added to context or phrasebook again. Refused (409) while a turn is open or if
+  nothing was spoken. UI: "Say again" on the spoken banner (device-audio messages replay
+  locally, which costs no ElevenLabs characters).
+- **Auto re-listen removed (user decision):** the 3 s auto-say countdown stays (toggle
+  renamed "Auto-say in 3 s"); the mic no longer reopens after a message is spoken.
+- **Avatar & voice page removed (user decision):** the avatar lives on My message only; the
+  voice switch remains in the top bar.
+
+### D-058 One consistent decision view; simpler fallback buttons; lip download still blocked
+- gpt-oss-20b sometimes returns candidates *and* `clarification_required` with a question.
+  The page then showed a yes/no box and no countdown, and other times only the countdown.
+  Now: whenever there are candidates, the view is always the same (best sentence with the
+  auto-say countdown, other options below); the yes/no question is shown only when there
+  are no candidates. A thumbs gesture answers the question only in that case too (tested).
+  A message made only of lip hints is never auto-said (R5).
+- The no-candidate panel has two buttons, **Edit** and **Say** (plus a small "Discard and
+  start again" link). Say speaks the text already shown on screen: the tap answers the
+  backend's show-back step with the same exact text. If only fillers were heard ("Mm-hmm"),
+  it says so and Say is disabled.
+- Lip reading: all three Auto-AVSR VSR checkpoints still return Google Drive "Quota
+  exceeded" (2026-11-01). Not worked around (D-025). Manual download while signed in to
+  Google, saved as `assets/lip/vsr.pth`, enables it after a backend restart.

@@ -51,6 +51,7 @@ interface Ctx {
   startTurn: (speaker: Speaker) => Promise<void>
   endTurn: () => Promise<void>
   confirm: (body: { choice_index?: number; edited_text?: string }) => Promise<{ needsReconfirm: boolean; finalText?: string } | null>
+  replay: () => Promise<void>
   reject: () => Promise<void>
   clarify: (answer: string) => Promise<void>
   clearEvents: () => void
@@ -140,11 +141,22 @@ export function BackendProvider({ children }: { children: React.ReactNode }) {
     }
   }, [refreshTurn, refreshContext])
 
-  // health poll (cheap, keeps the service list honest)
+  // health poll (cheap, keeps the service list honest). It also heals the link: one failed poll
+  // (e.g. during a backend restart) used to leave the page "offline" for good, which disabled
+  // "Start my message" even after the backend was back.
+  const wsOpen = useRef(false)
   useEffect(() => {
     refresh()
+    let fails = 0
     const id = window.setInterval(async () => {
-      try { setHealth(await api.health()) } catch { setLink((l) => (l === 'locked' ? l : 'offline')) }
+      try {
+        setHealth(await api.health())
+        fails = 0
+        setLink((l) => (l === 'offline' ? (wsOpen.current ? 'live' : 'connecting') : l))
+      } catch {
+        fails += 1
+        if (fails >= 2) setLink((l) => (l === 'locked' ? l : 'offline'))
+      }
     }, 5000)
     return () => window.clearInterval(id)
   }, [refresh])
@@ -219,8 +231,8 @@ export function BackendProvider({ children }: { children: React.ReactNode }) {
         break
       case 'lip.result': setLip(d as unknown as LipResult); break
       case 'speech.final':
+        // the quiet countdown restarts only on a real piece (fragment.added), not on noise (D-057)
         setSpeech({ speaker: d.speaker as Speaker, text: String(d.text ?? ''), confidence: (d.confidence as number) ?? null, at: Date.now() })
-        setLastActivity(Date.now())
         break
       case 'error': toast.error(`${String(d.source ?? 'Backend')} problem`, { description: String(d.error ?? 'Unknown error') }); break
     }
@@ -237,9 +249,10 @@ export function BackendProvider({ children }: { children: React.ReactNode }) {
     const connect = () => {
       setLink((l) => (l === 'locked' ? l : 'connecting'))
       ws = new WebSocket(wsUrl())
-      ws.onopen = () => { tries = 0; setLink('live'); refresh() }
+      ws.onopen = () => { tries = 0; wsOpen.current = true; setLink('live'); refresh() }
       ws.onmessage = (m) => { try { onEventRef.current(JSON.parse(m.data)) } catch { /* ignore malformed */ } }
       ws.onclose = () => {
+        wsOpen.current = false
         if (closed) return
         // a single drop is usually a blip: say "connecting" first, "offline" only after retries fail
         setLink((l) => (l === 'locked' ? l : tries >= 2 ? 'offline' : 'connecting'))
@@ -297,6 +310,8 @@ export function BackendProvider({ children }: { children: React.ReactNode }) {
     return { needsReconfirm: false, finalText: r.final_text }
   }, [refreshTurn, run])
 
+  const replay = useCallback(async () => { await run('replay', () => api.replay()) }, [run])
+
   const reject = useCallback(async () => {
     const t = await run('reject', () => api.reject(turnRef.current.turn_id))
     if (t) { setTurn(IDLE); setDraft({ fragments: [], cleaned: [] }); setQuestion(null) }
@@ -311,12 +326,12 @@ export function BackendProvider({ children }: { children: React.ReactNode }) {
     link, health, config, consent, voice, context, turn, draft, lastActivity, question, spoken,
     fallbackReason, avatarSpeaking, camera, mouth, gesture, lip, speech, events, language,
     modalities, busy, setLanguage, setModalities, refresh, refreshTurn, refreshContext,
-    setConsent, setVoice, startTurn, endTurn, confirm, reject, clarify,
+    setConsent, setVoice, startTurn, endTurn, confirm, replay, reject, clarify,
     clearEvents: () => setEvents([]),
   }), [link, health, config, consent, voice, context, turn, draft, lastActivity, question, spoken,
     fallbackReason, avatarSpeaking, camera, mouth, gesture, lip, speech, events, language,
     modalities, busy, setLanguage, setModalities, refresh, refreshTurn, refreshContext,
-    setConsent, setVoice, startTurn, endTurn, confirm, reject, clarify])
+    setConsent, setVoice, startTurn, endTurn, confirm, replay, reject, clarify])
 
   return <BackendCtx.Provider value={value}>{children}</BackendCtx.Provider>
 }
