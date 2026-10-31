@@ -62,6 +62,7 @@ class Settings:
     port: int = 8765  # 8000 is taken by another local app on the dev machine (D-008)
     # Browser origins allowed to open /ws (D-009). Loopback on any port is always allowed.
     allowed_origins: tuple[str, ...] = ()
+    access_token: str = ""  # optional: require X-PS16-Token / ?token= (D-049)
     face_model: Path = field(default_factory=lambda: ROOT / "assets" / "face_landmarker.task")
 
     # mouth_activity detector (not in the spec table; provisional, see D-012)
@@ -133,6 +134,7 @@ def load_settings(env: Mapping[str, str | None] | None = None) -> Settings:
         debug_preview=_bool(g("DEBUG_PREVIEW"), d.debug_preview),
         debug_save_clips=_bool(g("DEBUG_SAVE_CLIPS"), d.debug_save_clips),
         port=int(g("PORT") or d.port),
+        access_token=g("ACCESS_TOKEN") or "",
         allowed_origins=tuple(
             o.strip() for o in (g("ALLOWED_ORIGINS") or "").split(",") if o.strip()
         ),

@@ -191,6 +191,8 @@ def create_app(settings: Settings | None = None, overrides: Overrides | None = N
     # DNS-rebinding guard: a hostile page that rebinds its own name to 127.0.0.1 arrives
     # with its own Host header and is refused (D-009).
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])
+    if settings.access_token:
+        app.add_middleware(TokenMiddleware, token=settings.access_token)
     app.include_router(routes_misc.router)
     app.include_router(routes_gesture.router)
     app.include_router(routes_turn.router)
@@ -199,12 +201,57 @@ def create_app(settings: Settings | None = None, overrides: Overrides | None = N
     return app
 
 
+class TokenMiddleware:
+    """Optional shared-secret check (D-049): header `X-PS16-Token` for HTTP, `?token=` for
+    /ws. /health stays open so a frontend can see the service before it has the token."""
+
+    def __init__(self, app, token: str) -> None:
+        self.app, self.token = app, token
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] not in ("http", "websocket") or scope.get("path") == "/health":
+            return await self.app(scope, receive, send)
+        import hmac
+        from urllib.parse import parse_qs
+
+        headers = dict(scope.get("headers") or [])
+        got = headers.get(b"x-ps16-token", b"").decode()
+        if not got:
+            got = (parse_qs(scope.get("query_string", b"").decode()).get("token") or [""])[0]
+        if hmac.compare_digest(got, self.token):
+            return await self.app(scope, receive, send)
+        if scope["type"] == "websocket":
+            await send({"type": "websocket.close", "code": 1008})
+            return
+        body = (
+            ErrorBody(
+                error_code="unauthorized", message="missing or wrong access token", recoverable=True
+            )
+            .model_dump_json()
+            .encode()
+        )
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 401,
+                "headers": [(b"content-type", b"application/json")],
+            }
+        )
+        await send({"type": "http.response.body", "body": body})
+
+
 def main() -> None:
     import uvicorn
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     settings = load_settings()
-    uvicorn.run(create_app(settings), host=BIND_HOST, port=settings.port)
+    overrides = None
+    if settings.simulate:
+        from app.adapters.fakes import simulation_overrides
+
+        overrides = simulation_overrides()
+        log.warning("SIMULATE=1: mic, Scribe, LLM, TTS and Tavus are fakes; nothing is sent out")
+    uvicorn.run(create_app(settings, overrides), host=BIND_HOST, port=settings.port)
 
 
 if __name__ == "__main__":

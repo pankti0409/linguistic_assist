@@ -322,3 +322,55 @@ class FakeMic:
         self._stop.set()
         if self._thread is not None:
             self._thread.join(2)
+
+
+class SimulatedLLM:
+    """SIMULATE=1 stand-in for Groq. It builds two candidates from the cleaned fragments
+    only, so it can never invent a word. Health and events label it as a fake."""
+
+    def complete_json(self, system: str, user: str, *, temperature: float, max_tokens: int):
+        import json
+
+        p = json.loads(user)
+        ids = [f["id"] for f in p["fragments"] if "filler" not in f["flags"]]
+        text = " ".join(p["cleaned_fragments"]).strip()
+        if not text:
+            return json.dumps(
+                {
+                    "intent": "unclear",
+                    "candidates": [],
+                    "unexplained_fragment_ids": ids,
+                    "clarifying_question": None,
+                    "clarification_required": True,
+                    "reasoning_summary": "simulated: no content",
+                }
+            )
+        first = text[0].upper() + text[1:]
+        return json.dumps(
+            {
+                "intent": "simulated",
+                "candidates": [
+                    {"text": f"{first}.", "covers": ids, "added_words": []},
+                    {"text": f"{first}, please.", "covers": ids, "added_words": []},
+                ],
+                "unexplained_fragment_ids": [],
+                "clarifying_question": None,
+                "clarification_required": False,
+                "reasoning_summary": "simulated reconstruction (SIMULATE=1, not an LLM)",
+            }
+        )
+
+
+def simulation_overrides():
+    """SIMULATE=1: the video-file camera with real MediaPipe, and labelled fakes for the mic,
+    Scribe, LLM, TTS and Tavus. Nothing leaves the machine."""
+    from app.main import Overrides
+
+    return Overrides(
+        stt=FakeScribe(),
+        mic_factory=lambda: FakeMic(silence(500)),
+        llm=SimulatedLLM(),
+        tts=FakeTTS(),
+        tavus_api=FakeTavusAPI(),
+        avatar_transport_factory=FakeAvatar,
+    )
