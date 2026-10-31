@@ -6,7 +6,12 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from app.adapters.fakes import FakeFaceDetector, FakeGestureRecognizer, SyntheticCamera
+from app.adapters.fakes import (
+    FakeFaceDetector,
+    FakeGestureRecognizer,
+    FakeLipReader,
+    SyntheticCamera,
+)
 from app.config import Settings, load_settings
 from app.main import Overrides, create_app
 
@@ -28,6 +33,7 @@ def fake_overrides() -> Overrides:
         face_detector_factory=FakeFaceDetector.factory(),
         gesture_recognizer_factory=FakeGestureRecognizer.factory(),
         lexicon_path=Path(tempfile.mkdtemp(prefix="ps16-lex-")) / "test.json",
+        lip_reader_factory=FakeLipReader,
     )
 
 

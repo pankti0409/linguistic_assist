@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -26,6 +27,7 @@ from app.schemas import ErrorBody
 from app.services.camera import CameraHub
 from app.services.face import DetectorFactory, FaceService
 from app.services.gesture import GestureService, RecognizerFactory
+from app.services.lip import LipService
 
 log = logging.getLogger("ps16")
 
@@ -43,6 +45,7 @@ class Overrides:
     face_detector_factory: DetectorFactory | None = None
     gesture_recognizer_factory: RecognizerFactory | None = None
     lexicon_path: Path | None = None
+    lip_reader_factory: Callable[[], object] | None = None
 
 
 def _wire_camera(app: FastAPI, overrides: Overrides) -> None:
@@ -57,7 +60,10 @@ def _wire_camera(app: FastAPI, overrides: Overrides) -> None:
     gesture = GestureService(
         s, hub, bus, health, consent, overrides.gesture_recognizer_factory, overrides.lexicon_path
     )
-    app.state.camera, app.state.face, app.state.gesture = hub, face, gesture
+    lip = LipService(s, hub, face, bus, health, consent, overrides.lip_reader_factory)
+    app.state.camera, app.state.face, app.state.gesture, app.state.lip = hub, face, gesture, lip
+    # Loading Auto-AVSR (~1 GB) takes seconds, so do it off the request path.
+    threading.Thread(target=lip.load, name="lip-load", daemon=True).start()
 
     # Camera processing runs exactly while `camera` consent is held (R3, D-013).
     def on_grant(purpose: str) -> None:
@@ -82,6 +88,7 @@ def create_app(settings: Settings | None = None, overrides: Overrides | None = N
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         yield
+        app.state.lip.shutdown()
         app.state.gesture.stop()
         app.state.face.stop()
         app.state.camera.stop()

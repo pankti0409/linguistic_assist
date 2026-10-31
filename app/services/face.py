@@ -44,6 +44,9 @@ class FaceObservation:
     mouth_close: float | None = None
     yaw_deg: float | None = None
     pitch_deg: float | None = None
+    # [right eye, left eye, nose tip, mouth centre], normalised; the 4 points Auto-AVSR's
+    # own MediaPipe detector produces (see four_keypoints)
+    keypoints: np.ndarray | None = None
 
 
 ObservationCallback = Callable[[FaceObservation], None]
@@ -99,6 +102,49 @@ class MouthActivity:
         return self.active != before
 
 
+# --- landmark bridge for Auto-AVSR (D-022) ------------------------------------
+
+
+def _indices(connections) -> list[int]:
+    s: set[int] = set()
+    for c in connections:
+        s.update((c.start, c.end))
+    return sorted(s)
+
+
+_KP_SETS: tuple[list[int], list[int], list[int]] | None = None
+NOSE_TIP = 1  # canonical face mesh nose tip
+
+
+def keypoint_sets() -> tuple[list[int], list[int], list[int]]:
+    """(eye A, eye B, lips) index sets from the installed MediaPipe face mesh."""
+    global _KP_SETS
+    if _KP_SETS is None:
+        from mediapipe.tasks.python import vision
+
+        c = vision.FaceLandmarksConnections
+        _KP_SETS = (
+            _indices(c.FACE_LANDMARKS_RIGHT_EYE),
+            _indices(c.FACE_LANDMARKS_LEFT_EYE),
+            _indices(c.FACE_LANDMARKS_LIPS),
+        )
+    return _KP_SETS
+
+
+def four_keypoints(mesh_xy: np.ndarray, sets: tuple[list[int], list[int], list[int]]) -> np.ndarray:
+    """Mesh (478, 2) normalised -> (4, 2) normalised [right eye, left eye, nose tip, mouth].
+
+    The order matches Auto-AVSR's stable reference (68-point mean face: 36-41 right eye,
+    42-47 left eye, nose, 48-67 mouth), where the subject's right eye is on the image
+    left. The eyes are ordered by x, so this holds whatever MediaPipe calls them.
+    """
+    a = mesh_xy[sets[0]].mean(axis=0)
+    b = mesh_xy[sets[1]].mean(axis=0)
+    left_img, right_img = (a, b) if a[0] <= b[0] else (b, a)
+    mouth = mesh_xy[sets[2]].mean(axis=0)
+    return np.stack([left_img, right_img, mesh_xy[NOSE_TIP], mouth]).astype(np.float32)
+
+
 # --- MediaPipe adapter -------------------------------------------------------
 
 
@@ -120,6 +166,7 @@ class MediaPipeFaceDetector:
 
         self._mp = mp
         self._lips = lip_indices()
+        self._kp_sets = keypoint_sets()
         self._cb = on_observation
         options = vision.FaceLandmarkerOptions(
             base_options=BaseOptions(model_asset_path=str(model_path)),
@@ -139,14 +186,15 @@ class MediaPipeFaceDetector:
         self._landmarker.close()
 
     def _on_result(self, result, _image, ts_ms: int) -> None:
-        self._cb(self.convert(result, ts_ms, self._lips))
+        self._cb(self.convert(result, ts_ms, self._lips, self._kp_sets))
 
     @staticmethod
-    def convert(result, ts_ms: int, lips: list[int]) -> FaceObservation:
+    def convert(result, ts_ms: int, lips: list[int], kp_sets=None) -> FaceObservation:
         if not result.face_landmarks:
             return FaceObservation(ts_ms=ts_ms, face_present=False)
         lm = result.face_landmarks[0]
-        points = np.array([(lm[i].x, lm[i].y) for i in lips], dtype=np.float32)
+        mesh = np.array([(p.x, p.y) for p in lm], dtype=np.float32)
+        points = mesh[lips]
         shapes = {c.category_name: c.score for c in (result.face_blendshapes or [[]])[0]}
         yaw = pitch = None
         if result.facial_transformation_matrixes:
@@ -159,6 +207,7 @@ class MediaPipeFaceDetector:
             mouth_close=shapes.get("mouthClose"),
             yaw_deg=yaw,
             pitch_deg=pitch,
+            keypoints=four_keypoints(mesh, kp_sets) if kp_sets else None,
         )
 
 

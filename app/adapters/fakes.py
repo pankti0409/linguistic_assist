@@ -85,7 +85,7 @@ class FakeLipReader:
     available: bool = False
     calls: list[int] = field(default_factory=list)
 
-    def read(self, frames: Sequence[np.ndarray]) -> LipEvidence:
+    def read(self, frames: Sequence[np.ndarray], landmarks: Sequence = ()) -> LipEvidence:
         self.calls.append(len(frames))
         return self.result.model_copy(update={"frames": len(frames)})
 

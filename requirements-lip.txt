@@ -1,0 +1,10 @@
+# Optional lip-reading extra (M3). Install AFTER requirements.txt:
+#   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+#   pip install -r requirements-lip.txt
+# Auto-AVSR itself is cloned (not pip-installed) into third_party/auto_avsr:
+#   git clone https://github.com/mpc001/auto_avsr third_party/auto_avsr
+# Its README setup line: "pip install torch torchvision torchaudio pytorch-lightning sentencepiece av"
+pytorch-lightning
+sentencepiece
+av
+scikit-image   # imported by preparation/detectors/*/video_process.py

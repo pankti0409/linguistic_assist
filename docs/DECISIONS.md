@@ -169,3 +169,55 @@ never 8 consecutive at >= 0.7, so correctly no token. The token -> `gesture.word
 covered by tests, but not yet seen live with a mapped gesture. Verify with
 `scripts/watch_events.py gesture.token gesture.word` while showing a thumbs-up steadily for
 about 1 s.
+
+## M3 (2026-10-31)
+
+### D-022 Auto-AVSR integration: what is theirs and what is ours
+Auto-AVSR is cloned at commit `182b62837773ab01052d4ac21ef1d2203ea7d267` into
+`third_party/auto_avsr` (gitignored). The reader calls their code unchanged:
+- `preparation/detectors/mediapipe/video_process.VideoProcess` for landmark interpolation,
+  temporal smoothing, similarity alignment to `20words_mean_face.npy`, and the 96x96 crop;
+- `datamodule/transforms.VideoTransform("test")` for /255, CenterCrop(88), Grayscale and
+  Normalize(0.421, 0.165);
+- `lightning.ModelModule` with `get_beam_search_decoder`.
+
+Two bridges are written here:
+1. Their MediaPipe detector uses the legacy `mp.solutions.face_detection` API, which
+   MediaPipe 1.2.0 no longer has. Instead we feed the same 4 points (right eye, left eye,
+   nose tip, mouth centre) from FaceLandmarker: the mean of each eye's contour, mesh
+   index 1, and the mean of the lip contour. The two eyes are ordered by image x, to
+   match the 68-point reference (36-41 = subject's right eye, on the image left).
+2. Frames are greyscaled on arrival to save memory (about 37 MB for 4 s at 30 fps),
+   instead of inside `VideoTransform`. `VideoProcess(convert_gray=False)` then works on
+   the single-channel frames. The clip is resampled to 25 fps, the frame rate of
+   LRS3 / VoxCeleb2.
+
+### D-023 Yaw rule for lip evidence
+The spec says "yaw over 25 degrees". Applied as: more than 20% of the clip's face
+observations with |yaw| > `LIP_MAX_YAW_DEG` makes the evidence insufficient. This mirrors
+the face-missing rule, so a single glance away does not discard a clip. Both fractions are
+measured on raw per-frame observations, never on interpolated frames.
+
+### D-024 Lip score
+`ModelModule.forward` discards the beam score, so `_decode` repeats its 6 steps and keeps
+the best hypothesis score. It reports `exp(score / tokens)`, capped at 1. This is a
+relative hint, not a calibrated probability. Lip output is always `hint_only: true`.
+
+### D-025 Checkpoint download blocked by Google Drive quota
+The tutorial's `doc.ic.ac.uk` URLs return 404. All four VSR checkpoints in the README
+model zoo (Google Drive) currently answer "Quota exceeded" for full downloads. Single
+small byte ranges were served: the first bytes confirmed a PyTorch zip named
+`vsr_trlrs3vox2_base.pth` of 1,001,892,616 bytes. A full download was not forced around the
+quota. `scripts/download_lip_model.py` retries the official link, detects the quota page,
+verifies the README MD5 prefix, and saves to `assets/lip/vsr.pth`. Until then lip reports
+`unavailable` with the reason, and only `mouth_activity` is used (section 8.4). Preferred
+checkpoint: `vsr_trlrs3vox2_base` (24.6% WER on LRS3). All VSR checkpoints are the same
+size (250 M params), so "smallest" does not discriminate between them. This one avoids
+LRS2's BBC licence.
+
+### D-026 M3 live evidence
+Real webcam plus FaceLandmarker: a 3 s push capture buffered 90 frames (30 fps). It
+published `lip.result {status: unavailable, reason: checkpoint missing, hint_only: true}`,
+and FaceService history was empty after stop. Auto-AVSR's real preprocessing ran in tests
+on our landmarks (20 x 1 x 88 x 88 output) without model weights. No lip text has been
+produced yet, and none is claimed.

@@ -14,10 +14,14 @@ def test_health_lists_every_service_with_a_status(client):
     assert any("Hindi" in s for s in body["limits"]["lip"])
 
 
-def test_unbuilt_services_are_unavailable_not_ok(client):
+def test_idle_services_are_unavailable_not_ok(client):
+    # Nothing runs before consent; the fake lip reader is unavailable too.
     services = client.get("/health").json()["services"]
     assert all(s["status"] == "unavailable" for s in services.values())
-    assert all("not built yet" in s["detail"] for s in services.values())
+    for name in ("camera", "face", "gesture"):
+        assert services[name]["detail"].startswith("not built yet") or services[name]["detail"] in {
+            "stopped"
+        }
 
 
 def test_health_never_exposes_secrets(tmp_path):
