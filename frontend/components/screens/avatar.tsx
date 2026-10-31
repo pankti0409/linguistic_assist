@@ -76,6 +76,13 @@ export function AvatarScreen() {
             <div className="absolute left-4 top-4"><Badge tone="sage"><Dot pulse /> Speaking your message</Badge></div>
           )}
         </div>
+        {live && (
+          <p className="mx-6 mt-4 rounded-xl bg-sky px-4 py-3 text-sm text-sky-ink">
+            If the avatar room asks you to unblock your camera and mic, press <span className="font-bold">Dismiss</span>.
+            PS-16 keeps them off in the room on purpose: the avatar only needs to be seen and heard, and your
+            webcam keeps working for gestures through the backend.
+          </p>
+        )}
         <p className="px-6 py-4 text-sm text-muted">
           Everyone in the room sees that this is an AI avatar. It repeats your confirmed words exactly and never answers on its own.
         </p>
