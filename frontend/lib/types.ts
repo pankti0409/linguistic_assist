@@ -111,6 +111,7 @@ export interface BackendConfig {
   debug_preview: boolean
   simulate: boolean
   avatar_mode: string
+  avatar_audio_echo: boolean
   token_required: boolean
   languages: Language[]
 }

@@ -117,6 +117,7 @@ def get_config(request: Request) -> dict[str, Any]:
         "debug_preview": s.debug_preview,
         "simulate": s.simulate,
         "avatar_mode": s.tavus_pipeline_mode,
+        "avatar_audio_echo": s.avatar_audio_echo,
         "token_required": bool(s.access_token),
         "languages": ["en", "hi", "mixed", "auto"],
     }

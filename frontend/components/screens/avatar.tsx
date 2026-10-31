@@ -79,7 +79,11 @@ export function AvatarScreen() {
 
       <div className="grid grid-cols-1 content-start gap-6">
         <Panel className="p-6" aria-labelledby="voice-title">
-          <PanelHeader id="voice-title" title="Voice">Used for every spoken message. Library voices, not a clone of anyone.</PanelHeader>
+          <PanelHeader id="voice-title" title="Voice">
+            {b.config?.avatar_audio_echo === false
+              ? 'The avatar speaks with its own Tavus voice. This choice is only for audio played on this device.'
+              : 'Used for every spoken message. Library voices, not a clone of anyone.'}
+          </PanelHeader>
           <div className="mt-5">
             <Segmented
               label="Voice"
@@ -100,11 +104,17 @@ export function AvatarScreen() {
         <Panel className="p-6" aria-labelledby="ladder-title">
           <PanelHeader id="ladder-title" title="How messages are spoken">Exactly one of these runs for each message.</PanelHeader>
           <ol className="mt-5 grid grid-cols-1 gap-3">
-            {[
-              ['Avatar speaks with your chosen voice', 'when an avatar session is running'],
-              ['Avatar speaks with its own voice', 'if the first way does not start'],
-              ['This device plays the audio, with subtitles', 'always available as the safe fallback'],
-            ].map(([t, d], i) => (
+            {(b.config?.avatar_audio_echo === false
+              ? [
+                  ['Avatar speaks with its own Tavus voice', 'when an avatar session is running'],
+                  ['This device plays the audio, with subtitles', 'if the avatar is not running'],
+                ]
+              : [
+                  ['Avatar speaks with your chosen voice', 'when an avatar session is running'],
+                  ['Avatar speaks with its own voice', 'if the first way does not start'],
+                  ['This device plays the audio, with subtitles', 'always available as the safe fallback'],
+                ]
+            ).map(([t, d], i) => (
               <li key={t} className="flex gap-3">
                 <span className="grid grid-cols-1 size-7 shrink-0 place-items-center rounded-full bg-rail text-sm font-bold tabular">{i + 1}</span>
                 <span><span className="font-bold">{t}</span><br /><span className="text-sm text-muted">{d}</span></span>
