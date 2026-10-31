@@ -93,3 +93,30 @@ def delete_phrasebook(request: Request) -> dict[str, int]:
 @router.get("/metrics")
 def metrics(request: Request) -> dict[str, Any]:
     return request.app.state.metrics.snapshot()
+
+
+@router.get("/context")
+def get_context(request: Request) -> list[dict]:
+    """Recent labelled dialogue (last CONTEXT_TURNS), oldest first."""
+    return [t.model_dump() for t in request.app.state.conversation.recent()]
+
+
+@router.get("/config")
+def get_config(request: Request) -> dict[str, Any]:
+    """Non-secret runtime settings a frontend needs. Never keys or IDs."""
+    s = request.app.state.settings
+    return {
+        "fragment_silence_s": s.fragment_silence_s,
+        "fragment_max_s": s.fragment_max_s,
+        "turn_max_s": s.turn_max_s,
+        "max_clarify_rounds": s.max_clarify_rounds,
+        "confirm_ttl_s": s.confirm_ttl_s,
+        "context_turns": s.context_turns,
+        "calibrate_timeout_s": s.calibrate_timeout_s,
+        "lip_enabled": s.lip_enabled,
+        "debug_preview": s.debug_preview,
+        "simulate": s.simulate,
+        "avatar_mode": s.tavus_pipeline_mode,
+        "token_required": bool(s.access_token),
+        "languages": ["en", "hi", "mixed", "auto"],
+    }

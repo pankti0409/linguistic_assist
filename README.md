@@ -130,3 +130,9 @@ Not yet verified live:
 - Avatar speech and the verbatim test (no live Tavus calls by decision, D-044).
 - Lip text (checkpoint download blocked, D-025).
 - `mouth_activity` thresholds and the speech segmenter on real speech (D-012, D-031).
+
+## Frontend
+
+A full patient app lives in [frontend/](frontend/README.md) (Next.js). Start the backend,
+then `cd frontend && pnpm install && pnpm build && pnpm start`, and open
+http://localhost:3000. Set `DEBUG_PREVIEW=1` in `.env` to see the webcam self-view.

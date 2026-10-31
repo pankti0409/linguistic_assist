@@ -391,3 +391,15 @@ def test_concurrent_end_calls_close_once(tc):
     for t in threads:
         t.join()
     assert sorted(codes) == [200, 409, 409] and len(o.llm.requests) == 1
+
+
+def test_context_and_config_endpoints(tc):
+    c, _, _ = tc
+    c.app.state.conversation.add("PARTNER", "Water or tea?")
+    ctx = c.get("/context").json()
+    assert ctx[-1]["speaker"] == "PARTNER" and ctx[-1]["text"] == "Water or tea?"
+    cfg = c.get("/config").json()
+    assert cfg["fragment_silence_s"] == 6 and cfg["max_clarify_rounds"] == 2
+    assert cfg["token_required"] is False
+    dumped = json.dumps(cfg).lower()
+    assert "key" not in dumped and "voice_id" not in dumped  # no secrets or IDs

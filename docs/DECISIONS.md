@@ -395,3 +395,37 @@ no LLM call. R0, WER and Scribe/TTS latency are measured. Prompt tuning (max 3 r
 tune split only) has not started, because it needs the same budget. To complete it:
 `python evaluation/run_eval.py --reuse-wer` once the Groq budget is free. Completed
 answers are cached, so a partial run is never lost.
+
+## Frontend (2026-11-01)
+
+### D-050 Frontend rebuilt as a real client
+The supplied v0 zip was a single mock component: hard-coded candidates, timers in place of
+turns, and 5 placeholder screens. It was rebuilt in its own visual language (paper, sage,
+lavender) on live backend data only. Two backend read-only routes were added for it:
+`GET /context` (labelled recent dialogue; the spec's "recent context visible") and
+`GET /config` (non-secret timing values, so the silence countdown uses
+`FRAGMENT_SILENCE_S` instead of a constant). Vercel Analytics was removed (R8 spirit: nothing
+leaves the machine), and `ignoreBuildErrors` was dropped, so the build typechecks.
+
+### D-051 Webcam in the browser = the backend's preview stream
+R1 makes the CameraHub the only owner of the webcam, and on Windows a second opener would
+fight over the device. So the UI never calls getUserMedia. It shows
+`/camera/preview.mjpg` (encoded in memory, loopback only, needs camera consent), mirrored for
+a natural self-view, with live tracking overlays. `DEBUG_PREVIEW=1` is now set in the dev
+`.env` because the self-view is part of the patient UI. With it off, the UI says so and
+tracking still runs.
+
+### D-052 Same-origin proxy instead of CORS
+`/backend/*` is rewritten by Next.js to 127.0.0.1:8765, which keeps D-009 (no CORS) intact.
+The WS and the MJPEG image connect directly, and both are allowed for loopback origins.
+
+### D-053 Verification of the frontend
+`tsc` and `next build` are clean; the impeccable detector reports no findings. A Playwright
+(installed Edge) click-through against a scripted backend (real app code; fake mic, Scribe,
+LLM and TTS) passed with 0 console errors: switches -> partner context -> start -> live chips
+with pauses -> done -> candidates with highlighted additions -> say -> spoken banner -> edit
+-> review -> say -> phrasebook (edited x2) -> labelled context -> insights. Overflow was
+measured at 390 / 820 / 1440 px. One real bug (grids sized to content on phones) was found
+and fixed. With the real backend, the live webcam self-view and face tracking were seen in
+the UI. Not verified in the browser: real ElevenLabs audio playback (the configured voices
+need a paid plan, D-041) and the avatar iframe (no live Tavus, D-044).
