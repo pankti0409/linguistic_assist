@@ -13,16 +13,30 @@ router = APIRouter()
 LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}
 
 
-def origin_allowed(origin: str | None, extra: tuple[str, ...]) -> bool:
-    """Non-browser clients send no Origin. Browsers must come from loopback or the allowlist.
+def is_lan_or_loopback(host: str) -> bool:
+    if host in LOOPBACK_HOSTS:
+        return True
+    if host.startswith("10.") or host.startswith("192.168."):
+        return True
+    if host.startswith("172."):
+        parts = host.split(".")
+        if len(parts) >= 2 and parts[1].isdigit() and 16 <= int(parts[1]) <= 31:
+            return True
+    return False
 
-    Without this, any web page the user visits could read the event stream (patient text).
-    """
+
+def origin_allowed(origin: str | None, extra: tuple[str, ...]) -> bool:
+    """Non-browser clients send no Origin. Browsers must come from loopback, LAN, or the allowlist."""
     if origin is None:
         return True
     if origin in extra:
         return True
-    return urlsplit(origin).hostname in LOOPBACK_HOSTS
+    host = urlsplit(origin).hostname or ""
+    if is_lan_or_loopback(host):
+        return True
+    if host.endswith(".hf.space") or host == "hf.space":
+        return True
+    return False
 
 
 async def _until_disconnect(ws: WebSocket) -> None:

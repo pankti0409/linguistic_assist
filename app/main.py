@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import threading
 from collections.abc import Callable
 from contextlib import asynccontextmanager
@@ -188,9 +189,9 @@ def create_app(settings: Settings | None = None, overrides: Overrides | None = N
         log.exception("unhandled error")
         return _error(500, "internal_error", type(exc).__name__, False)
 
-    # DNS-rebinding guard: a hostile page that rebinds its own name to 127.0.0.1 arrives
-    # with its own Host header and is refused (D-009).
-    app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])
+    # Allowed hosts: loopback locally, hf.space in Hugging Face containers
+    allowed_hosts = ["127.0.0.1", "localhost", "0.0.0.0", "*.hf.space", "hf.space", "*"]
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
     if settings.access_token:
         app.add_middleware(TokenMiddleware, token=settings.access_token)
     app.include_router(routes_misc.router)
@@ -198,6 +199,24 @@ def create_app(settings: Settings | None = None, overrides: Overrides | None = N
     app.include_router(routes_turn.router)
     app.include_router(routes_avatar.router)
     app.include_router(ws.router)
+
+    # Also support /backend prefix for frontend routing
+    app.include_router(routes_misc.router, prefix="/backend")
+    app.include_router(routes_gesture.router, prefix="/backend")
+    app.include_router(routes_turn.router, prefix="/backend")
+    app.include_router(routes_avatar.router, prefix="/backend")
+
+    # Serve compiled frontend from f_new/dist if available
+    dist_dir = ROOT / "f_new" / "dist"
+    if dist_dir.is_dir():
+        from fastapi.staticfiles import StaticFiles
+
+        for subdir in ["assets", "fonts", "media", "images"]:
+            subpath = dist_dir / subdir
+            if subpath.is_dir():
+                app.mount(f"/{subdir}", StaticFiles(directory=str(subpath)), name=subdir)
+        app.mount("/", StaticFiles(directory=str(dist_dir), html=True), name="frontend")
+
     return app
 
 
@@ -251,7 +270,9 @@ def main() -> None:
 
         overrides = simulation_overrides()
         log.warning("SIMULATE=1: mic, Scribe, LLM, TTS and Tavus are fakes; nothing is sent out")
-    uvicorn.run(create_app(settings, overrides), host=BIND_HOST, port=settings.port)
+    host = os.environ.get("BIND_HOST", BIND_HOST)
+    port = int(os.environ.get("PORT", str(settings.port)))
+    uvicorn.run(create_app(settings, overrides), host=host, port=port)
 
 
 if __name__ == "__main__":

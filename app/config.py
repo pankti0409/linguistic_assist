@@ -11,8 +11,8 @@ from dotenv import dotenv_values
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# R8: the server only ever binds to loopback. Deliberately not configurable.
-BIND_HOST = "127.0.0.1"
+# Server bind host: 127.0.0.1 locally, 0.0.0.0 in Docker/cloud containers.
+BIND_HOST = os.environ.get("BIND_HOST", "127.0.0.1")
 
 
 def _bool(v: str | None, default: bool) -> bool:

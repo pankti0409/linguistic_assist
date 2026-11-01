@@ -10,6 +10,7 @@ import type {
 
 const envBackend =
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_BACKEND_URL) ||
+  (typeof window !== 'undefined' ? window.location.origin : '') ||
   'http://127.0.0.1:8765'
 export const BACKEND_URL = envBackend.replace(/\/$/, '')
 const TOKEN_KEY = 'ps16.token'
@@ -106,7 +107,10 @@ export function previewUrl(nonce: number): string {
 
 export function wsUrl(): string {
   const token = getToken()
-  return `${BACKEND_URL.replace(/^http/, 'ws')}/ws${token ? `?token=${encodeURIComponent(token)}` : ''}`
+  const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:'
+  const scheme = isHttps ? 'wss' : 'ws'
+  const host = BACKEND_URL.replace(/^https?:\/\//, '')
+  return `${scheme}://${host}/ws${token ? `?token=${encodeURIComponent(token)}` : ''}`
 }
 
 export function errorText(e: unknown): string {
