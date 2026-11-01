@@ -19,7 +19,7 @@ const variants: Record<ButtonVariant, string> = {
   no: 'bg-blush text-blush-ink border border-blush-ink/25 hover:border-blush-ink/60',
 }
 const sizes: Record<ButtonSize, string> = {
-  sm: 'h-9 px-3 text-sm gap-1.5 rounded-lg',
+  sm: 'min-h-11 min-w-11 px-3 text-sm gap-1.5 rounded-lg',
   md: 'h-11 px-4 text-[15px] gap-2 rounded-xl',
   lg: 'h-14 px-6 text-base gap-2.5 rounded-xl',
   xl: 'h-20 px-8 text-lg gap-3 rounded-2xl',
@@ -87,15 +87,15 @@ export function Switch({ checked, onChange, label, disabled, busy }: {
       disabled={disabled || busy}
       onClick={() => onChange(!checked)}
       className={cn(
-        'relative inline-flex h-8 w-14 shrink-0 items-center rounded-full border transition-colors duration-200',
+        'relative inline-flex h-11 w-[68px] shrink-0 items-center rounded-full border transition-colors duration-200',
         checked ? 'border-sage-solid bg-sage-solid' : 'border-line-strong bg-rail',
         'disabled:opacity-55',
       )}
     >
       <span
         className={cn(
-          'grid grid-cols-1 size-6 place-items-center rounded-full bg-panel shadow-card transition-transform duration-200 ease-out',
-          checked ? 'translate-x-7' : 'translate-x-1',
+          'grid grid-cols-1 size-8 place-items-center rounded-full bg-panel shadow-card transition-transform duration-200 ease-out',
+          checked ? 'translate-x-8' : 'translate-x-1',
         )}
       >
         {busy && <Loader2 className="size-3.5 animate-spin text-muted" aria-hidden />}
@@ -108,18 +108,30 @@ export function Segmented<T extends string>({ value, options, onChange, label, s
   value: T; options: { value: T; label: React.ReactNode; disabled?: boolean }[]; onChange: (v: T) => void; label: string; size?: 'sm' | 'md'
 }) {
   return (
-    <div role="radiogroup" aria-label={label} className="inline-flex rounded-xl border border-line bg-rail p-1">
+    <div role="radiogroup" aria-label={label} className="inline-flex max-w-full flex-wrap rounded-xl border border-line bg-rail p-1">
       {options.map((o) => (
         <button
           key={o.value}
           type="button"
           role="radio"
           aria-checked={value === o.value}
+          tabIndex={value === o.value || (!options.some((item) => item.value === value && !item.disabled) && options.find((item) => !item.disabled)?.value === o.value) ? 0 : -1}
           disabled={o.disabled}
           onClick={() => onChange(o.value)}
+          onKeyDown={(event) => {
+            if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return
+            event.preventDefault()
+            const enabled = options.filter((item) => !item.disabled)
+            const index = enabled.findIndex((item) => item.value === o.value)
+            const next = event.key === 'Home' ? 0 : event.key === 'End' ? enabled.length - 1
+              : (index + (event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 1) + enabled.length) % enabled.length
+            onChange(enabled[next].value)
+            const buttons = event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')
+            buttons?.[next]?.focus()
+          }}
           className={cn(
             'inline-flex items-center gap-1.5 rounded-lg font-bold transition-colors duration-150',
-            size === 'sm' ? 'h-8 px-2.5 text-[13px]' : 'h-9 px-3.5 text-sm',
+            size === 'sm' ? 'min-h-11 px-2.5 text-[13px]' : 'min-h-11 px-3.5 text-sm',
             value === o.value ? 'bg-panel text-ink shadow-card' : 'text-muted hover:text-ink',
             'disabled:opacity-45',
           )}

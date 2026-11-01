@@ -97,7 +97,7 @@
 }
 
 @layer base {
-  html { background: var(--paper); -webkit-text-size-adjust: 100%; }
+  html { background: var(--paper); -webkit-text-size-adjust: 100%; scroll-padding-block: 96px; }
   body {
     margin: 0;
     background: var(--paper);
@@ -120,6 +120,21 @@
   *::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 999px; border: 3px solid var(--paper); }
   .tabular { font-variant-numeric: tabular-nums; }
   a { text-underline-offset: 3px; }
+}
+
+/* Shared interaction rhythm, with stable targets for assistive input. */
+[data-theme-switching] *,
+[data-theme-switching] *::before,
+[data-theme-switching] *::after { transition: none !important; }
+
+main h1 { font-size: clamp(1.75rem, 2.4vw, 2.5rem); line-height: 1.15; letter-spacing: -0.025em; }
+main :is(input, textarea, select) { scroll-margin-block: 100px; }
+nav [aria-current='page'] { background: var(--sage); color: var(--sage-ink); }
+nav button { transition: background-color 150ms, color 150ms; }
+button:active:not(:disabled) { transition-duration: 0ms; }
+
+@media (max-width: 639px) {
+  main { padding-bottom: calc(7rem + env(safe-area-inset-bottom)); }
 }
 
 /* the live mic ring: the one continuous motion, shown only while listening */
@@ -151,5 +166,7 @@
 [data-theme='dark'] .skeleton::after { background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.06), transparent); }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+  button, [role='switch'] span { transform: none !important; }
+  .listen-ring::before, .listen-ring::after, .skeleton::after { animation-play-state: paused; }
 }

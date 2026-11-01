@@ -230,3 +230,126 @@ def test_auto_avsr_preprocessing_runs_on_our_landmarks():
     video = reader.preprocess(clip_frames, landmarks)
     assert tuple(video.shape) == (20, 1, 88, 88)
     assert abs(float(video.mean())) < 5  # normalised by (x - 0.421) / 0.165
+
+
+# --- HuggingFace Space lip reader (D-050) -----------------------------------
+
+
+class _FakeGradioClient:
+    """Minimal stand-in for gradio_client.Client."""
+
+    def __init__(self, space_id, **kwargs):
+        self.space_id = space_id
+        self.calls: list[dict] = []
+
+    def predict(self, *, video_path, beam_size, api_name):
+        self.calls.append({"video_path": video_path, "beam_size": beam_size})
+        return "hello world"
+
+
+def _make_hf_reader(monkeypatch, space_id="marshal-yash/vsr_trlrs3vox2_base"):
+    """Return a HFSpaceLipReader with gradio_client mocked out."""
+    from app.services.lip import HFSpaceLipReader
+
+    reader = HFSpaceLipReader(space_id=space_id, beam_size=10)
+    fake_client = _FakeGradioClient(space_id)
+    reader._client = fake_client  # inject pre-built fake, skip real network call
+    return reader, fake_client
+
+
+def test_hf_space_reader_is_available():
+    from app.services.lip import HFSpaceLipReader
+
+    reader = HFSpaceLipReader()
+    assert reader.available is True
+
+
+def test_hf_space_reader_returns_lip_evidence(monkeypatch, tmp_path):
+    """HFSpaceLipReader encodes frames and returns LipEvidence(status='ok')."""
+    import cv2
+
+    reader, fake_client = _make_hf_reader(monkeypatch)
+
+    # patch cv2.VideoWriter so we don't need a real codec
+    class _FakeVW:
+        def write(self, frame): pass
+        def release(self): pass
+
+    monkeypatch.setattr(cv2, "VideoWriter", lambda *a, **kw: _FakeVW())
+    monkeypatch.setattr(cv2, "VideoWriter_fourcc", lambda *a: 0)
+
+    rng = np.random.default_rng(42)
+    clip_frames = [rng.integers(0, 255, (48, 64), dtype=np.uint8) for _ in range(20)]
+
+    ev = reader.read(clip_frames)
+    assert ev.status == "ok"
+    assert ev.text == "hello world"
+    assert ev.score == 0.5
+    assert ev.frames == 20
+    assert len(fake_client.calls) == 1
+    assert fake_client.calls[0]["beam_size"] == 10.0
+
+
+def test_hf_space_reader_empty_frames(monkeypatch):
+    """Empty frame list -> insufficient_visual_evidence, no network call."""
+    reader, fake_client = _make_hf_reader(monkeypatch)
+    ev = reader.read([])
+    assert ev.status == "insufficient_visual_evidence"
+    assert fake_client.calls == []
+
+
+def test_load_reader_prefers_hf_space_over_local(tmp_path):
+    """When LIP_HF_SPACE is set, load_reader returns HFSpaceLipReader."""
+    from app.config import load_settings
+    from app.services.lip import HFSpaceLipReader, load_reader
+
+    s = load_settings({
+        "LIP_HF_SPACE": "marshal-yash/vsr_trlrs3vox2_base",
+        "LIP_HF_BEAM_SIZE": "15",
+        "LIP_ENABLED": "1",
+    })
+    reader = load_reader(s)
+    assert isinstance(reader, HFSpaceLipReader)
+    assert reader._space_id == "marshal-yash/vsr_trlrs3vox2_base"
+    assert reader._beam_size == 15
+    assert reader.available is True
+
+
+def test_load_reader_hf_space_disabled_when_lip_disabled():
+    """LIP_ENABLED=0 must take precedence even when LIP_HF_SPACE is set."""
+    from app.config import load_settings
+    from app.services.lip import UnavailableLipReader, load_reader
+
+    s = load_settings({
+        "LIP_HF_SPACE": "marshal-yash/vsr_trlrs3vox2_base",
+        "LIP_ENABLED": "0",
+    })
+    reader = load_reader(s)
+    assert isinstance(reader, UnavailableLipReader)
+    assert not reader.available
+
+
+def test_hf_space_health_message(monkeypatch):
+    """LipService.load() surfaces the Space ID in the health detail."""
+    from app.adapters.fakes import FakeFaceDetector, SyntheticCamera
+    from app.config import load_settings
+    from app.core.consent import ConsentRegistry
+    from app.core.health import HealthRegistry
+    from app.services.camera import CameraHub
+    from app.services.face import FaceService
+    from app.services.lip import HFSpaceLipReader, LipService
+    from tests.test_camera import Recorder
+
+    reader = HFSpaceLipReader(space_id="marshal-yash/vsr_trlrs3vox2_base", beam_size=20)
+    s = load_settings({"SIMULATE": "1"})
+    consent = ConsentRegistry()
+    consent.grant("camera")
+    bus = Recorder()
+    health = HealthRegistry(s)
+    hub = CameraHub(s, bus, health, consent, source_factory=SyntheticCamera)
+    face = FaceService(s, hub, bus, health, consent, FakeFaceDetector.factory())
+    lip = LipService(s, hub, face, bus, health, consent, lambda: reader)
+    lip.load()
+    detail = health.get("lip").detail
+    assert "marshal-yash/vsr_trlrs3vox2_base" in detail
+    assert "beam=20" in detail

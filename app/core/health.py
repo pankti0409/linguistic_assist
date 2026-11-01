@@ -79,7 +79,7 @@ class HealthRegistry:
     def _configured(self, name: str) -> bool | None:
         s = self._settings
         if name == "lip":
-            return s.lip_enabled and s.lip_checkpoint.is_file()
+            return s.lip_enabled and (bool(s.lip_hf_space) or s.lip_checkpoint.is_file())
         if name == "scribe":
             return bool(s.elevenlabs_api_key)
         if name == "tts":

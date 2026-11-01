@@ -4,7 +4,7 @@ uvicorn[standard]>=0.30
 pydantic>=2.7
 python-dotenv>=1.0
 httpx>=0.27
-numpy>=1.26
+numpy>=1.26,<2
 # mediapipe depends on opencv-contrib-python; installing opencv-python too gives two
 # competing cv2 packages, so only the contrib build is listed (D-015).
 opencv-contrib-python>=4.9

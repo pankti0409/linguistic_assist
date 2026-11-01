@@ -200,15 +200,26 @@ class AvatarService:
         try:
             conv = self._rest().create_conversation(conversation_body(self._s, callback_url))
         except Exception as exc:
+            # Surface the HTTP response body so operators can act on it (e.g. 402 = out of credits)
+            detail = type(exc).__name__
+            try:
+                resp = getattr(exc, "response", None)
+                if resp is not None:
+                    body = resp.json()
+                    msg = body.get("message") or body.get("error") or str(body)
+                    detail = f"HTTP {resp.status_code}: {msg}"
+                    if resp.status_code == 402:
+                        detail = f"Out of Tavus conversational credits (402). Top up at tavus.io or set TAVUS_PIPELINE_MODE=echo to skip avatar."
+            except Exception:
+                pass
+            log.error("Tavus create_conversation failed: %s", detail)
             self._health.set(
                 "avatar",
                 "unavailable",
-                f"create failed: {type(exc).__name__}",
+                detail,
                 backend=self._backend,
             )
-            raise AvatarSessionError(
-                f"Tavus conversation not created: {type(exc).__name__}"
-            ) from exc
+            raise AvatarSessionError(detail) from exc
         transport = self._transport_factory()
         try:
             transport.join(conv["conversation_url"], self._on_message)

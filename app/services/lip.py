@@ -10,6 +10,18 @@ interpolation of frames without landmarks), then to its `VideoTransform("test")`
 
 The only bridge written here maps FaceLandmarker's mesh to the 4 points Auto-AVSR's own
 MediaPipe detector produces: right eye, left eye, nose tip, mouth centre.
+
+HuggingFace Space backend (D-050)
+----------------------------------
+When ``LIP_HF_SPACE`` is set (e.g. ``"marshal-yash/vsr_trlrs3vox2_base"``),
+``load_reader()`` returns a ``HFSpaceLipReader`` instead of ``AutoAvsrReader``.
+The HF backend:
+
+1. Encodes the greyscale clip frames to a temporary MP4 at 25 fps using OpenCV.
+2. Calls the Gradio ``/predict`` endpoint via ``gradio_client.Client``.
+3. Deletes the temp file and returns the predicted text as ``LipEvidence``.
+
+No checkpoint file or Auto-AVSR source tree is needed in this mode.
 """
 
 from __future__ import annotations
@@ -186,6 +198,107 @@ class AutoAvsrReader:
         return text.strip(), round(min(1.0, score), 4)
 
 
+# --- HuggingFace Space lip reader (D-050) ---------------------------------
+
+
+class HFSpaceLipReader:
+    """LipReader that calls the deployed Gradio Space instead of a local checkpoint.
+
+    The Space expects a face video file and returns the transcribed text.
+    Frames (greyscale uint8, 25 fps after resampling) are written to a
+    temporary MP4, sent to the Space via ``gradio_client``, then the temp
+    file is deleted immediately (R8: no raw media left on disk after the
+    call returns).
+
+    Parameters
+    ----------
+    space_id:
+        HuggingFace Space ID, e.g. ``"marshal-yash/vsr_trlrs3vox2_base"``.
+    beam_size:
+        Beam-search width passed to the Space (5..40, default 20).
+    hf_token:
+        Optional HF token for private Spaces.
+    """
+
+    def __init__(
+        self,
+        space_id: str = "marshal-yash/vsr_trlrs3vox2_base",
+        beam_size: int = 20,
+        hf_token: str | None = None,
+    ) -> None:
+        self._space_id = space_id
+        self._beam_size = int(beam_size)
+        self._hf_token = hf_token
+        self._client = None  # lazy-initialised on first call
+
+    def _get_client(self):
+        if self._client is None:
+            try:
+                from gradio_client import Client  # noqa: PLC0415
+            except ImportError as exc:
+                raise RuntimeError(
+                    "gradio-client is not installed; "
+                    "run: pip install gradio-client"
+                ) from exc
+            kwargs = {}
+            if self._hf_token:
+                kwargs["hf_token"] = self._hf_token
+            self._client = Client(self._space_id, **kwargs)
+        return self._client
+
+    @property
+    def available(self) -> bool:
+        return True
+
+    def read(
+        self,
+        frames: Sequence[np.ndarray],
+        landmarks: Sequence[np.ndarray | None] = (),
+    ) -> LipEvidence:
+        """Encode *frames* to a temp MP4, call the HF Space, return LipEvidence."""
+        import tempfile  # noqa: PLC0415
+
+        import cv2  # noqa: PLC0415
+        from gradio_client import handle_file  # noqa: PLC0415
+
+        if not frames:
+            return LipEvidence(status="insufficient_visual_evidence", frames=0)
+
+        h, w = frames[0].shape[:2]
+        tmp = None
+        try:
+            # Write greyscale frames to a temp file as a BGR MP4 (OpenCV needs BGR)
+            with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tf:
+                tmp = tf.name
+            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+            out = cv2.VideoWriter(tmp, fourcc, TARGET_FPS, (w, h))
+            for frame in frames:
+                # Convert greyscale -> BGR so VideoWriter accepts it
+                bgr = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+                out.write(bgr)
+            out.release()
+
+            client = self._get_client()
+            result: str = client.predict(
+                video_path=handle_file(tmp),
+                beam_size=float(self._beam_size),
+                api_name="/predict",
+            )
+        finally:
+            # Always delete the temp file (R8)
+            if tmp is not None:
+                try:
+                    Path(tmp).unlink(missing_ok=True)
+                except Exception:
+                    log.warning("could not delete temp clip %s", tmp)
+
+        text = (result or "").strip()
+        log.debug("HF Space returned: %r", text)
+        # The Space does not return a confidence score; use 0.5 as a neutral hint
+        return LipEvidence(status="ok", text=text, score=0.5, frames=len(frames))
+
+
+
 class UnavailableLipReader:
     def __init__(self, reason: str) -> None:
         self.reason = reason
@@ -198,9 +311,29 @@ class UnavailableLipReader:
         return LipEvidence(status="unavailable", frames=len(frames))
 
 
-def load_reader(settings: Settings) -> AutoAvsrReader | UnavailableLipReader:
+def load_reader(
+    settings: Settings,
+) -> HFSpaceLipReader | AutoAvsrReader | UnavailableLipReader:
+    """Return the best available LipReader for *settings*.
+
+    Priority
+    --------
+    1. ``HFSpaceLipReader`` when ``LIP_HF_SPACE`` is set.
+    2. ``AutoAvsrReader`` when the local checkpoint and Auto-AVSR tree are present.
+    3. ``UnavailableLipReader`` otherwise.
+    """
     if not settings.lip_enabled:
         return UnavailableLipReader("LIP_ENABLED=0")
+
+    # D-050: prefer the HuggingFace Space when configured
+    if settings.lip_hf_space:
+        log.info("lip: using HuggingFace Space %s", settings.lip_hf_space)
+        return HFSpaceLipReader(
+            space_id=settings.lip_hf_space,
+            beam_size=settings.lip_hf_beam_size,
+            hf_token=settings.lip_hf_token or None,
+        )
+
     if not settings.lip_checkpoint.is_file():
         return UnavailableLipReader(
             f"checkpoint {settings.lip_checkpoint.name} missing; run scripts/download_lip_model.py"
@@ -265,7 +398,11 @@ class LipService:
         if self.reader is None:
             self.reader = self._reader_factory()
         if getattr(self.reader, "available", False):
-            self._health.set("lip", "ok", f"Auto-AVSR {self._s.lip_checkpoint.name}", "real")
+            if isinstance(self.reader, HFSpaceLipReader):
+                detail = f"HF Space {self.reader._space_id} (beam={self.reader._beam_size})"
+            else:
+                detail = f"Auto-AVSR {self._s.lip_checkpoint.name}"
+            self._health.set("lip", "ok", detail, "real")
         else:
             reason = getattr(self.reader, "reason", "unavailable")
             self._health.set("lip", "unavailable", f"{reason}; mouth_activity only")

@@ -46,7 +46,9 @@ function useTheme() {
   useEffect(() => { setThemeState(document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light') }, [])
   const setTheme = useCallback((t: 'light' | 'dark') => {
     setThemeState(t)
+    document.documentElement.dataset.themeSwitching = 'true'
     document.documentElement.dataset.theme = t
+    requestAnimationFrame(() => requestAnimationFrame(() => { delete document.documentElement.dataset.themeSwitching }))
     try { localStorage.setItem('ps16.theme', JSON.stringify(t)) } catch { /* storage blocked */ }
   }, [])
   return { theme, setTheme }
@@ -71,7 +73,7 @@ function Shell() {
   const go = useCallback((s: string) => {
     if (!SCREENS.includes(s as Screen)) return
     setScreen(s as Screen); setMore(false)
-    history.replaceState(null, '', `#${s}`)
+    if (window.location.hash !== `#${s}`) history.pushState(null, '', `#${s}`)
     window.scrollTo({ top: 0 })
   }, [])
 
@@ -84,7 +86,7 @@ function Shell() {
       <ConnectionBanner go={go} />
       <div className="flex">
         <nav aria-label="Main" className="sticky top-[73px] hidden h-[calc(100dvh-73px)] w-64 shrink-0 flex-col border-r border-line bg-rail px-3 py-6 lg:flex">
-          <p className="px-3 pb-5 font-serif text-lg leading-snug text-ink-soft">Nothing is spoken until you say so.</p>
+          <p className="px-3 pb-5 font-serif text-lg leading-snug text-ink-soft">Your words. At your pace.</p>
           <ul className="grid grid-cols-1 gap-1">
             {NAV.map(({ id, label, icon: Icon }) => (
               <li key={id}>
@@ -113,10 +115,11 @@ function Shell() {
           </div>
         </nav>
 
-        <main id="main" className="min-w-0 flex-1 px-4 pb-28 pt-6 sm:px-6 lg:px-10 lg:pb-12 lg:pt-8">
-          <AnimatePresence mode="wait" initial={false}>
+        <main id="main" tabIndex={-1} className="min-w-0 flex-1 px-4 pb-28 pt-6 sm:px-6 lg:px-10 lg:pb-12 lg:pt-8">
+          <AnimatePresence mode="popLayout" initial={false}>
             <motion.div
               key={screen}
+              className="mx-auto w-full max-w-[1440px]"
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, transition: { duration: 0.1 } }}

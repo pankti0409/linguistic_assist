@@ -57,6 +57,10 @@ class Settings:
     camera_source: str = "0"
     lip_enabled: bool = True
     lip_checkpoint: Path = field(default_factory=lambda: ROOT / "assets" / "lip" / "vsr.pth")
+    # D-050: HuggingFace Space backend (takes priority over local checkpoint when set)
+    lip_hf_space: str = ""  # e.g. "marshal-yash/vsr_trlrs3vox2_base"
+    lip_hf_beam_size: int = 20  # beam search width 5..40
+    lip_hf_token: str = ""  # optional HF token for private Spaces
     debug_preview: bool = False
     debug_save_clips: bool = False  # R8: must stay false; enforced in __post_init__
     port: int = 8765  # 8000 is taken by another local app on the dev machine (D-008)
@@ -131,6 +135,9 @@ def load_settings(env: Mapping[str, str | None] | None = None) -> Settings:
         camera_source=g("CAMERA_SOURCE") or d.camera_source,
         lip_enabled=_bool(g("LIP_ENABLED"), d.lip_enabled),
         lip_checkpoint=Path(g("LIP_CHECKPOINT")) if g("LIP_CHECKPOINT") else d.lip_checkpoint,
+        lip_hf_space=g("LIP_HF_SPACE") or "",
+        lip_hf_beam_size=int(g("LIP_HF_BEAM_SIZE") or d.lip_hf_beam_size),
+        lip_hf_token=g("LIP_HF_TOKEN") or "",
         debug_preview=_bool(g("DEBUG_PREVIEW"), d.debug_preview),
         debug_save_clips=_bool(g("DEBUG_SAVE_CLIPS"), d.debug_save_clips),
         port=int(g("PORT") or d.port),

@@ -20,6 +20,10 @@ type Phase = 'joining' | 'waiting' | 'live' | 'ended' | 'error'
 // The backend joins the same room as a silent relay; it is not the avatar.
 const RELAY_NAME = 'ps16-relay'
 
+// Serialise call creation and destruction across mounts/Strict-Mode so Daily never throws
+// "Duplicate DailyIframe instances are not allowed."
+let callLock: Promise<void> = Promise.resolve()
+
 export function AvatarPlayer({ url, onEnded }: { url: string; onEnded?: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
@@ -66,8 +70,15 @@ export function AvatarPlayer({ url, onEnded }: { url: string; onEnded?: () => vo
       if (others.length === 0) ended()
     }
 
-    ;(async () => {
+    callLock = callLock.then(async () => {
+      if (cancelled) return
       try {
+        const existing = Daily.getCallInstance()
+        if (existing) {
+          try { await existing.destroy() } catch { /* ignore */ }
+        }
+        if (cancelled) return
+
         call = Daily.createCallObject({
           videoSource: false,
           audioSource: false,
@@ -83,13 +94,18 @@ export function AvatarPlayer({ url, onEnded }: { url: string; onEnded?: () => vo
       } catch (e) {
         if (!cancelled) { setError(e instanceof Error ? e.message : 'Could not join the avatar room'); setPhase('error') }
       }
-    })()
+    })
 
     return () => {
       cancelled = true
-      const c = call
-      call = null
-      if (c) c.leave().catch(() => undefined).finally(() => { c.destroy().catch(() => undefined) })
+      callLock = callLock.then(async () => {
+        const c = call || Daily.getCallInstance()
+        call = null
+        if (c) {
+          try { await c.leave() } catch { /* ignore */ }
+          try { await c.destroy() } catch { /* ignore */ }
+        }
+      })
     }
   }, [url])
 
@@ -113,7 +129,7 @@ export function AvatarPlayer({ url, onEnded }: { url: string; onEnded?: () => vo
             ) : (
               <>
                 <Loader2 className="size-7 animate-spin" aria-hidden />
-                <p className="font-bold">{phase === 'joining' ? 'Connecting to your avatar…' : 'Waiting for the avatar to appear…'}</p>
+                <p className="font-bold">{phase === 'joining' ? 'Connecting to your avatar.' : 'Waiting for the avatar to appear.'}</p>
                 <p className="text-sm text-white/75">Your camera and microphone stay off.</p>
               </>
             )}
