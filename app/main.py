@@ -160,7 +160,7 @@ def create_app(settings: Settings | None = None, overrides: Overrides | None = N
         app.state.face.stop()
         app.state.camera.stop()
 
-    app = FastAPI(title="PS-16 communication assistant backend", version="0.0.0", lifespan=lifespan)
+    app = FastAPI(title="Sampark communication assistant backend", version="0.0.0", lifespan=lifespan)
     app.state.settings = settings
     app.state.bus = EventBus()
     app.state.consent = ConsentRegistry()

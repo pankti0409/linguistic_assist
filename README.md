@@ -1,4 +1,4 @@
-# linguistic_assist: PS-16 communication assistant backend
+# Sampark: Multimodal Communication Assistant Backend
 
 A local backend for people who cannot speak reliably. It collects **fragments** of a
 message across long pauses (broken speech from the laptop mic, hand-gesture words and

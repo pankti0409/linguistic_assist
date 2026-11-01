@@ -45,7 +45,7 @@ export function CameraView({ size = 'md', className }: { size?: 'md' | 'lg'; cla
           </Button>
         </Overlay>
       ) : camera && !camera.ok && camera.detail !== 'stopped' ? (
-        <Overlay icon={<CameraOff className="size-6" />} title="Camera busy or missing" body={`${camera.detail}. Close other apps using the webcam; PS-16 keeps retrying.`} />
+        <Overlay icon={<CameraOff className="size-6" />} title="Camera busy or missing" body={`${camera.detail}. Close other apps using the webcam; Sampark keeps retrying.`} />
       ) : !preview ? (
         <Overlay icon={<ScanFace className="size-6" />} title="Tracking without a picture" body="The webcam is running and tracking your face, but the self-view is off. Set DEBUG_PREVIEW=1 in the backend .env to see yourself." />
       ) : broken ? (

@@ -1,7 +1,7 @@
 [project]
-name = "ps16-backend"
+name = "sampark"
 version = "0.0.0"
-description = "PS-16 multimodal communication assistant backend (assistive proof of concept)"
+description = "Sampark: Multimodal communication assistant backend (assistive proof of concept)"
 requires-python = ">=3.10,<3.12"
 
 [tool.ruff]

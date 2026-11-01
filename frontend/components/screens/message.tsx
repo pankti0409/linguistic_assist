@@ -82,7 +82,7 @@ function ContextBar({ line, onPartner }: { line?: string; onPartner: () => void 
       <div className="min-w-0 flex-1">
         <p className="text-sm font-bold text-sky-ink">{line ? 'Your partner asked' : 'No question from your partner yet'}</p>
         <p className={cn('line-clamp-2 sm:truncate', line ? 'font-serif text-xl text-ink' : 'text-sm text-sky-ink')}>
-          {line ? `“${line}”` : 'Their last question helps PS-16 understand short answers.'}
+          {line ? `“${line}”` : 'Their last question helps Sampark understand short answers.'}
         </p>
       </div>
       <Button size="sm" variant="secondary" onClick={onPartner}>{line ? 'New question' : 'Record partner'}</Button>
@@ -156,7 +156,7 @@ function Composer({ autoSay, setAutoSay }: { autoSay: boolean; setAutoSay: (on: 
             <>
               <p className="text-2xl font-bold">Say it in pieces</p>
               <p className="mt-1 max-w-prose text-muted">
-                Single words, broken syllables, gestures. PS-16 turns them into a full sentence
+                Single words, broken syllables, gestures. Sampark turns them into a full sentence
                 {autoSay ? `, and the avatar says the best one after ${AUTO_SAY_S} seconds unless you cancel.` : '. Nothing is spoken until you choose one.'}
               </p>
               <div className="mt-5 flex flex-wrap items-center gap-3">

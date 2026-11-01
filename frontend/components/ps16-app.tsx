@@ -155,11 +155,11 @@ function Header({ onLog, theme, setTheme, go }: { onLog: () => void; theme: 'lig
   const linkLabel = { live: 'Connected', connecting: 'Connecting…', offline: 'Backend offline', locked: 'Token needed' }[b.link]
   return (
     <header className="sticky top-0 z-30 flex h-[73px] items-center gap-3 border-b border-line bg-paper/90 px-4 backdrop-blur-md sm:px-6">
-      <button onClick={() => go('message')} className="flex items-center gap-3 rounded-xl text-left" aria-label="PS-16 Voice Bridge, go to My message">
+      <button onClick={() => go('message')} className="flex items-center gap-3 rounded-xl text-left" aria-label="Sampark, go to My message">
         <span className="grid grid-cols-1 size-10 place-items-center rounded-xl bg-lavender text-lavender-ink"><Waves className="size-5" aria-hidden /></span>
         <span className="hidden sm:block">
-          <span className="block font-serif text-xl font-semibold leading-none">PS-16</span>
-          <span className="block text-xs text-muted">Voice Bridge</span>
+          <span className="block font-serif text-xl font-semibold leading-none">Sampark</span>
+          <span className="block text-xs text-muted">Communication Assistant</span>
         </span>
       </button>
       <Badge tone={tone} className="ml-1">

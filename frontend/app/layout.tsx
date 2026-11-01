@@ -8,7 +8,7 @@ const ui = Atkinson_Hyperlegible({ subsets: ['latin'], weight: ['400', '700'], v
 const message = Newsreader({ subsets: ['latin'], variable: '--font-message', display: 'swap' })
 
 export const metadata: Metadata = {
-  title: 'PS-16 Voice Bridge',
+  title: 'Sampark | Multimodal Communication Assistant',
   description: 'A calm assistive communication bridge for people who cannot speak reliably.',
   icons: {
     icon: [
