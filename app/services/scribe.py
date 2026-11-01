@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import math
+import sys
 import threading
 from collections import deque
 from collections.abc import Callable
@@ -143,19 +144,41 @@ class Segmenter:
 # --- adapters ----------------------------------------------------------------
 
 
+def _select_mic_device(configured, devices, platform: str):
+    """Respect explicit selection; avoid a Bluetooth default on Mac laptops."""
+    if configured is not None and str(configured).strip():
+        value = str(configured).strip()
+        return int(value) if value.isdigit() else value
+    if platform == "darwin":
+        for index, device in enumerate(devices):
+            name = device["name"].lower()
+            if device["max_input_channels"] > 0 and (
+                ("macbook" in name and "microphone" in name)
+                or ("built-in" in name and ("microphone" in name or "input" in name))
+            ):
+                return index
+    return None
+
+
 class SounddeviceMic:
     """Laptop mic, 16 kHz mono int16. Audio goes straight to the callback, never to disk."""
 
-    def __init__(self) -> None:
+    def __init__(self, device: str | int | None = None) -> None:
         self._stream = None
+        self._device = device
+        self.device_name = "default input"
 
     def start(self, on_audio: Callable[[bytes], None]) -> None:
         import sounddevice as sd
+
+        device = _select_mic_device(self._device, sd.query_devices(), sys.platform)
+        self.device_name = sd.query_devices(device, kind="input")["name"]
 
         def cb(indata, frames, time_info, status):  # noqa: ARG001
             on_audio(bytes(indata))
 
         self._stream = sd.RawInputStream(
+            device=device,
             samplerate=SAMPLE_RATE,
             channels=1,
             dtype="int16",
@@ -228,10 +251,11 @@ class ScribeService:
         self._consent = consent
         self._stt = stt
         self._backend = "fake" if stt is not None else "real"
-        self._mic_factory = mic_factory or SounddeviceMic
+        self._mic_factory = mic_factory or (lambda: SounddeviceMic(settings.mic_device))
         self._pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="scribe")  # keeps order
         self._lock = threading.Lock()
         self._mic = None
+        self._mic_name = ""
         self._seg: Segmenter | None = None
         self._pending: list[Future] = []
         self._on_final: FinalCallback | None = None
@@ -282,6 +306,13 @@ class ScribeService:
             mic = self._mic_factory()
             mic.start(self._on_audio)
             self._mic = mic
+            self._mic_name = getattr(mic, "device_name", "injected microphone")
+            self._health.set(
+                "scribe",
+                "ok" if self._backend == "fake" else "degraded",
+                f"listening: {self._mic_name}; awaiting transcription",
+                backend=self._backend,
+            )
 
     def stop(self, timeout_s: float = 15.0) -> list[SpeechEvidence]:
         """Stop the mic, transcribe the last utterance, and wait for every pending result."""
@@ -335,7 +366,8 @@ class ScribeService:
         finally:
             seg.pcm = b""  # drop the audio as soon as the request is done (R8)
         self._health.set(
-            "scribe", "ok", f"{SCRIBE_MODEL} batch; last call ok", backend=self._backend
+            "scribe", "ok", f"{SCRIBE_MODEL} batch; input: {self._mic_name}; last call ok",
+            backend=self._backend,
         )
         self._bus.publish(
             "speech.final",

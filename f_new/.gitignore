@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.media-cache/
+frames/
+artifacts/
+!.gitignore
+# The source video is a supplied design asset, not recorded patient media.
+!gemini_generated_video_473a762e.mp4
+!gemini_generated_video_6c8214ea.mp4
+!public/media/dark/sampark-packed.mp4
+!public/media/light/sampark-packed.mp4

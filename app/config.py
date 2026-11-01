@@ -55,6 +55,7 @@ class Settings:
     # runtime switches
     simulate: bool = False
     camera_source: str = "0"
+    mic_device: str = ""  # sounddevice input name/index; empty prefers built-in on macOS
     lip_enabled: bool = True
     lip_checkpoint: Path = field(default_factory=lambda: ROOT / "assets" / "lip" / "vsr.pth")
     # D-050: HuggingFace Space backend (takes priority over local checkpoint when set)
@@ -133,6 +134,7 @@ def load_settings(env: Mapping[str, str | None] | None = None) -> Settings:
         avatar_chunk_bytes=int(g("AVATAR_CHUNK_BYTES") or d.avatar_chunk_bytes),
         simulate=_bool(g("SIMULATE"), d.simulate),
         camera_source=g("CAMERA_SOURCE") or d.camera_source,
+        mic_device=g("MIC_DEVICE") or d.mic_device,
         lip_enabled=_bool(g("LIP_ENABLED"), d.lip_enabled),
         lip_checkpoint=Path(g("LIP_CHECKPOINT")) if g("LIP_CHECKPOINT") else d.lip_checkpoint,
         lip_hf_space=g("LIP_HF_SPACE") or "",

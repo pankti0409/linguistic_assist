@@ -257,11 +257,33 @@ def _make_hf_reader(monkeypatch, space_id="marshal-yash/vsr_trlrs3vox2_base"):
     return reader, fake_client
 
 
-def test_hf_space_reader_is_available():
+def test_hf_space_reader_is_available(monkeypatch):
     from app.services.lip import HFSpaceLipReader
 
+    monkeypatch.setattr("app.services.lip.find_spec", lambda name: object())
     reader = HFSpaceLipReader()
     assert reader.available is True
+    assert reader.reason == ""
+
+
+def test_hf_space_reader_unavailable_without_client_dependency(monkeypatch):
+    from app.services.lip import HFSpaceLipReader
+
+    monkeypatch.setattr("app.services.lip.find_spec", lambda name: None)
+    reader = HFSpaceLipReader()
+    assert reader.available is False
+    assert "gradio-client is not installed" in reader.reason
+    assert "pip install gradio-client" in reader.reason
+
+
+def test_hf_space_missing_client_reports_unavailable_health(monkeypatch):
+    from app.services.lip import HFSpaceLipReader
+
+    monkeypatch.setattr("app.services.lip.find_spec", lambda name: None)
+    _, _, lip, _, health = _service(HFSpaceLipReader())
+    lip.load()
+    assert health.get("lip").status == "unavailable"
+    assert "gradio-client is not installed" in health.get("lip").detail
 
 
 def test_hf_space_reader_returns_lip_evidence(monkeypatch, tmp_path):
@@ -298,11 +320,12 @@ def test_hf_space_reader_empty_frames(monkeypatch):
     assert fake_client.calls == []
 
 
-def test_load_reader_prefers_hf_space_over_local(tmp_path):
+def test_load_reader_prefers_hf_space_over_local(tmp_path, monkeypatch):
     """When LIP_HF_SPACE is set, load_reader returns HFSpaceLipReader."""
     from app.config import load_settings
     from app.services.lip import HFSpaceLipReader, load_reader
 
+    monkeypatch.setattr("app.services.lip.find_spec", lambda name: object())
     s = load_settings({
         "LIP_HF_SPACE": "marshal-yash/vsr_trlrs3vox2_base",
         "LIP_HF_BEAM_SIZE": "15",
@@ -340,6 +363,7 @@ def test_hf_space_health_message(monkeypatch):
     from app.services.lip import HFSpaceLipReader, LipService
     from tests.test_camera import Recorder
 
+    monkeypatch.setattr("app.services.lip.find_spec", lambda name: object())
     reader = HFSpaceLipReader(space_id="marshal-yash/vsr_trlrs3vox2_base", beam_size=20)
     s = load_settings({"SIMULATE": "1"})
     consent = ConsentRegistry()

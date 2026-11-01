@@ -31,7 +31,7 @@ def report(status: str, name: str, detail: str) -> None:
 
 def check_python() -> None:
     v = sys.version_info
-    ok = (3, 10) <= (v.major, v.minor) <= (3, 11)
+    ok = (3, 10) <= (v.major, v.minor) <= (3, 13)
     report("PASS" if ok else "FAIL", "python", f"{v.major}.{v.minor}.{v.micro}")
 
 

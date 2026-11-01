@@ -25,6 +25,13 @@ def test_env_overrides_and_inline_comments():
     assert s.tavus_pipeline_mode == "echo"
 
 
+def test_microphone_device_env_supports_name_or_index():
+    name = "MacBook Air Microphone"
+    assert load_settings({"MIC_DEVICE": name}).mic_device == name
+    assert load_settings({"MIC_DEVICE": "2"}).mic_device == "2"
+    assert load_settings({}).mic_device == ""
+
+
 def test_debug_save_clips_refused():
     with pytest.raises(ValueError, match="R8"):
         load_settings({"DEBUG_SAVE_CLIPS": "true"})

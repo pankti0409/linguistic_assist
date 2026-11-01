@@ -133,6 +133,6 @@ Not yet verified live:
 
 ## Frontend
 
-A full patient app lives in [frontend/](frontend/README.md) (Next.js). Start the backend,
-then `cd frontend && pnpm install && pnpm build && pnpm start`, and open
-http://localhost:3000. Set `DEBUG_PREVIEW=1` in `.env` to see the webcam self-view.
+The landing page and full patient app live in [f_new/](f_new/README.md) (React, TypeScript, Vite). Start the backend,
+then `cd f_new && npm install && npm run dev`, and open
+http://127.0.0.1:5173. Choose **Open Sampark** or visit `/#message` to enter the app. Set `DEBUG_PREVIEW=1` in `.env` to see the webcam self-view.

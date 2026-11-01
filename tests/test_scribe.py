@@ -6,7 +6,7 @@ from app.core.consent import ConsentRegistry
 from app.core.errors import ConsentRequiredError
 from app.core.health import HealthRegistry
 from app.schemas import SpeechEvidence
-from app.services.scribe import ScribeService, Segmenter, is_low_confidence
+from app.services.scribe import ScribeService, Segmenter, _select_mic_device, is_low_confidence
 from tests.test_camera import Recorder
 
 
@@ -90,3 +90,35 @@ def test_low_confidence_rule():
     assert is_low_confidence(SpeechEvidence(text="water", is_final=True, confidence=0.2))
     assert not is_low_confidence(SpeechEvidence(text="water", is_final=True, confidence=0.9))
     assert not is_low_confidence(SpeechEvidence(text="water", is_final=True))
+
+
+DEVICES = [
+    {"name": "NOISE EARBUDS", "max_input_channels": 1},
+    {"name": "MacBook Air Speakers", "max_input_channels": 0},
+    {"name": "MacBook Air Microphone", "max_input_channels": 1},
+]
+
+
+def test_mac_prefers_laptop_input_over_bluetooth_default():
+    assert _select_mic_device("", DEVICES, "darwin") == 2
+
+
+@pytest.mark.parametrize(
+    "configured,expected", [("0", 0), ("2", 2), ("NOISE EARBUDS", "NOISE EARBUDS")]
+)
+def test_explicit_microphone_selection_wins(configured, expected):
+    assert _select_mic_device(configured, DEVICES, "darwin") == expected
+
+
+def test_other_platforms_and_macs_without_builtin_keep_default():
+    assert _select_mic_device("", DEVICES, "linux") is None
+    assert _select_mic_device("", DEVICES[:1], "darwin") is None
+
+
+def test_capture_health_identifies_microphone_without_touching_hardware():
+    svc, mic, _ = _svc([], b"")
+    mic.device_name = "Test laptop microphone"
+    svc.start("PATIENT", "en", lambda *args: None)
+    assert "Test laptop microphone" in svc._health.get("scribe").detail
+    svc.stop()
+    svc.shutdown()

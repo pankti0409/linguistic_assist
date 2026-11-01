@@ -34,6 +34,7 @@ from collections import deque
 from collections.abc import Callable, Sequence
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
+from importlib.util import find_spec
 from pathlib import Path
 
 import numpy as np
@@ -248,7 +249,13 @@ class HFSpaceLipReader:
 
     @property
     def available(self) -> bool:
-        return True
+        return find_spec("gradio_client") is not None
+
+    @property
+    def reason(self) -> str:
+        return "" if self.available else (
+            "gradio-client is not installed; run: pip install gradio-client"
+        )
 
     def read(
         self,
