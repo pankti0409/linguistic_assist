@@ -1,0 +1,99 @@
+# Hindi / Hinglish function-word allowlist for the R10 post-validator (section 8.6 E).
+# DRAFT: to be reviewed by a Hindi speaker before any real use (spec requirement).
+# Devanagari and common romanised (Hinglish) forms. One token per line.
+# Deliberately EXCLUDED: negations (नहीं, मत, ना, nahi, mat, na), numbers, content words.
+# "चाहिए / chahiye" is included as the Hindi request frame, like English "would like" (D-029).
+# postpositions
+का
+की
+के
+को
+में
+से
+पर
+ने
+तक
+लिए
+ka
+ki
+ke
+ko
+mein
+me
+se
+par
+ne
+tak
+liye
+# auxiliaries / copula
+है
+हैं
+हूँ
+हूं
+हो
+था
+थी
+थे
+hai
+hain
+hoon
+hun
+ho
+tha
+thi
+the
+# pronouns / possessives
+मैं
+मुझे
+मुझको
+मेरा
+मेरी
+मेरे
+हम
+हमें
+आप
+आपको
+यह
+ये
+वह
+वो
+main
+mai
+mujhe
+mera
+meri
+mere
+hum
+humein
+aap
+aapko
+yeh
+ye
+woh
+wo
+# particles / conjunctions
+और
+भी
+ही
+तो
+क्या
+या
+aur
+bhi
+hi
+to
+kya
+ya
+# politeness / request framing
+कृपया
+प्लीज़
+प्लीज
+जी
+धन्यवाद
+चाहिए
+please
+plz
+ji
+dhanyavaad
+shukriya
+chahiye
